@@ -4,7 +4,7 @@
 
 > 英文版：[README.en.md](README.en.md)。
 
-**v1.2.0**：改进稳定性、性能与代码体积。空闲时停止重绘，保留工具和命令的原始输出，优化 Git 查询，移除固定编辑器合成器；字符雨改为手动开启，支持 256 色、`NO_COLOR` 和应用内更新日志。详见 [1.2.0 更新说明](#120)。
+**v1.2.1**：页眉标题可用 `/muelsyse-header "<text>"` 自定义；带 open-tui 时工作提示行回到 Pi 的状态行，字符雨始终位于 agents 栏之上（与加载顺序无关）。详见 [1.2.1 更新说明](#121)。
 
 ## 包含内容
 
@@ -146,7 +146,7 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 }
 ```
 
-字符雨配置位于 `~/.pi/agent/muelsyse-macaron-matrix.json`，通过 `/muelsyse-matrix` 修改。`on` 开启的是“工作时自动播放”，空闲时不常驻；`preview` 可立即预览 5 秒。
+字符雨配置位于 `~/.pi/agent/muelsyse-macaron-matrix.json`，通过 `/muelsyse-matrix` 修改。`on` 开启的是“工作时自动播放”，空闲时不常驻；`preview` 可立即预览 5 秒。字符雨始终位于其他扩展的输入框上方组件（例如 Cockpit 的 agents 栏）之上，与本包在 `packages` 中的加载顺序无关。
 
 ## 命令
 
@@ -165,6 +165,10 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 
 /muelsyse-art [path]                        加载页眉图；省略路径时打开文件浏览器
 /muelsyse-art reset                         恢复默认页眉图
+
+/muelsyse-header                            查看当前页眉标题
+/muelsyse-header "<text>"                   自定义页眉标题
+/muelsyse-header reset                      恢复默认标题
 ```
 
 `/muelsyse-art` 在当前项目目录打开可滚动的 TUI 文件浏览器。↑／↓ 选择，Enter 进入目录或加载文件，←／Backspace 返回上级，Esc 取消且保留当前图片。浏览器显示普通文件、目录和符号链接；请选用 UTF-8 文本或 ANSI 文件。目录读取失败时会显示错误并保留当前列表。
@@ -178,15 +182,35 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 /muelsyse-art "./my art/portrait.ansi"
 ```
 
+`/muelsyse-header "<text>"` 替换图片下方那行标题（默认 `◈  MUELSYSE CYBERDECK  ◈`）。标题占一行：制表符、换行和转义序列会被拒绝，超宽时从右侧裁剪。设置写入 `~/.pi/agent/muelsyse-macaron-header.json`，重启或切换会话后仍然生效；`/muelsyse-header reset` 删除该配置并恢复默认标题（以后升级本包时默认标题会跟着更新）。
+
 ## 插件共存
 
 避免与 `pi-zentui`、`pi-powerline-footer`、原版 `pi-claude-shimmer` 或本包的另一份副本叠加，它们共享页脚、工作提示和编辑器区域。
 
-检测到 Open TUI 后，本包保留其页眉、页脚和自定义编辑器，只为装饰色应用同款渐变。缓存命中率与遥测沿用 Open TUI 原有逻辑；`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整。
+检测到 Open TUI 后，本包保留其页眉、页脚和自定义编辑器，只为装饰色应用同款渐变；Open TUI 编辑器默认把工作提示行画进输入框上边框，本包会把它交还 Pi 的状态行，位置与不带 Open TUI 时一致（雨与 agents 栏之上）。缓存命中率与遥测沿用 Open TUI 原有逻辑；`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整。
 
 ## 更新日志
 
 完整历史见 [CHANGELOG.md](CHANGELOG.md)，也可在 Pi 中运行 `/muelsyse-changelog`。
+
+### 1.2.1
+
+页眉标题可以自己设置，带 open-tui 时的底部布局与不带时保持一致。
+
+#### 主要改进
+
+- **页眉标题可自定义**：`/muelsyse-header "<text>"` 替换图片下方的标题，`status` 查看，`reset` 恢复默认且不把当前默认值钉进文件。
+- **与 open-tui 对齐**：加载 `pi-open-tui` 时工作提示行回到 Pi 的状态行，字符雨始终位于 agents 栏之上，与加载顺序无关。
+
+#### 新增
+
+- `/muelsyse-header "<text>"` 替换页眉图片下方那行标题（默认 `◈  MUELSYSE CYBERDECK  ◈`）；`status` 查看当前标题，`reset` 恢复默认。设置存放在 `~/.pi/agent/muelsyse-macaron-header.json`，标题必须是一行（拒绝制表符、换行和转义序列），超宽从右侧裁剪。`reset` 删除该文件而不写入当前默认值，以后升级本包时默认标题会跟着更新。
+
+#### 修复
+
+- 带 `pi-open-tui` 时，工作提示行（shimmer HUD）被画进输入框上边框；现在由 Pi 渲染在自己的状态行，位于字符雨与 agents 栏之上，与不带 open-tui 时一致。
+- 本包排在 Cockpit 之后加载（`packages` 列表末尾的常规顺序）时，字符雨会落到 agents 栏（`Alt+R Agent`）下面；现在在渲染期排序，字符雨始终在其上方，agents 栏紧贴输入框。
 
 ### 1.2.0
 

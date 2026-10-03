@@ -3,6 +3,24 @@
 All notable changes to pi-muelsyse-macaron. After updating, Pi shows the newest
 entry once above the editor; run `/muelsyse-changelog` to read this file inside Pi.
 
+## [1.2.1] - 2026-10-04
+
+The header label is yours to set, and the open-tui chrome sits where it does without open-tui.
+
+### Highlights
+
+- **The header label is yours**: `/muelsyse-header "<text>"` replaces the line under the artwork, `status` shows it and `reset` restores the default without pinning it.
+- **open-tui parity**: with `pi-open-tui` loaded the working line returns to Pi's status row, and the matrix rain stays above the agent bar, whatever order the extensions load in.
+
+### Added
+
+- **`/muelsyse-header "<text>"`** replaces the line under the header artwork (default `◈  MUELSYSE CYBERDECK  ◈`); `status` shows the current label and `reset` restores the default. The label lives in `~/.pi/agent/muelsyse-macaron-header.json`, must be a single line (tabs, line breaks and escape sequences are rejected) and is clipped from the right when it is wider than the terminal. `reset` deletes that file instead of pinning the current default, so later pack versions keep updating it.
+
+### Fixed
+
+- With `pi-open-tui` loaded, the working line (shimmer HUD) was painted into the editor's top border. Pi draws it in its status row again — above the matrix rain and the agent bar — exactly as without open-tui.
+- The matrix rain rendered below other above-editor widgets (Cockpit's `Alt+R Agent` bar) whenever this pack loaded after them — the usual `packages` order at the end of the list. The rain is reordered at render time now, so it always sits above them while the agent bar stays directly above the input box.
+
 ## [1.2.0] - 2026-09-30
 
 A robustness, performance and "lighter footprint" release based on a full code review

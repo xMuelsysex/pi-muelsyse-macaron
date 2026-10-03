@@ -4,7 +4,7 @@ Lightweight Muelsyse Macaron visual pack for [Pi](https://pi.dev).
 
 > Chinese version: [README.md](README.md).
 
-**v1.2.0** — robustness, performance and footprint release: no idle redraws, no rewriting of tool or command output, safer git, fixed-editor removed, matrix opt-in, 256-color/`NO_COLOR` support, and an in-app changelog. See [what changed](#120).
+**v1.2.1** — the header label becomes yours to set, and the open-tui chrome sits where it does without open-tui: working line back in Pi's status row, matrix rain above the agent bar whatever the load order. See [what changed](#121).
 
 ## What’s inside
 
@@ -146,7 +146,7 @@ Settings default to Simplified Chinese. Use **`/zentui` → Features → “Lang
 }
 ```
 
-Matrix settings live in `~/.pi/agent/muelsyse-macaron-matrix.json` (edit with `/muelsyse-matrix`).
+Matrix settings live in `~/.pi/agent/muelsyse-macaron-matrix.json` (edit with `/muelsyse-matrix`). The rain always renders above other extensions' above-editor widgets (Cockpit's agent bar among them), whatever order the pack is loaded in.
 
 ## Commands
 
@@ -165,6 +165,10 @@ Matrix settings live in `~/.pi/agent/muelsyse-macaron-matrix.json` (edit with `/
 
 /muelsyse-art [path]                        load header art (no path = TUI file browser)
 /muelsyse-art reset                         restore the default header art
+
+/muelsyse-header                            show the current header label
+/muelsyse-header "<text>"                   use a custom header label
+/muelsyse-header reset                      restore the default label
 ```
 
 `/muelsyse-art` opens a scrollable TUI file browser in the current project directory: ↑/↓
@@ -179,15 +183,39 @@ the current Pi process; restarting Pi restores the default.
 /muelsyse-art "./my art/portrait.ansi"
 ```
 
+`/muelsyse-header "<text>"` replaces the line under the artwork (default `◈  MUELSYSE CYBERDECK  ◈`).
+It stays on one line: tabs, line breaks and escape sequences are rejected, and a too-wide
+label is clipped on the right. The label is stored in `~/.pi/agent/muelsyse-macaron-header.json`
+and survives restarts and session switches; `/muelsyse-header reset` removes that file, so the
+default label keeps tracking the pack version.
+
 ## Conflicts
 
 Avoid stacking with `pi-zentui`, `pi-powerline-footer`, stock `pi-claude-shimmer`, or a second copy of this pack. They share the footer / working line / editor surfaces.
 
-When pi-open-tui is loaded, this pack keeps its header, footer and custom editor, and only themes the decoration colors with the same gradient. Cache hit rate and telemetry stay owned by Open TUI: the matching `/zentui` entries read “Managed by /open-tui” and are configured in `/open-tui` instead.
+When pi-open-tui is loaded, this pack keeps its header, footer and custom editor, and only themes the decoration colors with the same gradient. The open-tui editor draws the working line into the editor's top border by default; the pack hands it back to Pi's status row, so it sits where it does without open-tui (above the rain and the agent bar). Cache hit rate and telemetry stay owned by Open TUI: the matching `/zentui` entries read “Managed by /open-tui” and are configured in `/open-tui` instead.
 
 ## Changelog
 
 Full history: [CHANGELOG.md](CHANGELOG.md) (also available in Pi via `/muelsyse-changelog`).
+
+### 1.2.1
+
+The header label is yours to set, and the open-tui chrome sits where it does without open-tui.
+
+#### Highlights
+
+- **The header label is yours**: `/muelsyse-header "<text>"` replaces the line under the artwork, `status` shows it and `reset` restores the default without pinning it.
+- **open-tui parity**: with `pi-open-tui` loaded the working line returns to Pi's status row, and the matrix rain stays above the agent bar, whatever order the extensions load in.
+
+#### Added
+
+- `/muelsyse-header "<text>"` replaces the line under the header artwork (default `◈  MUELSYSE CYBERDECK  ◈`); `status` shows the current label and `reset` restores the default. The label lives in `~/.pi/agent/muelsyse-macaron-header.json`, must be a single line (tabs, line breaks and escape sequences are rejected) and is clipped from the right when it is wider than the terminal. `reset` deletes that file instead of pinning the current default, so later pack versions keep updating it.
+
+#### Fixed
+
+- With `pi-open-tui` loaded, the working line (shimmer HUD) was painted into the editor's top border. Pi draws it in its status row again — above the matrix rain and the agent bar — exactly as without open-tui.
+- The matrix rain rendered below other above-editor widgets (Cockpit's `Alt+R Agent` bar) whenever this pack loaded after them — the usual `packages` order at the end of the list. The rain is reordered at render time now, so it always sits above them while the agent bar stays directly above the input box.
 
 ### 1.2.0
 
