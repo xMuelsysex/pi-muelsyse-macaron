@@ -7,12 +7,21 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { fgAnsi, getColorMode, syncColorMode, type RGB } from "../shared/color";
 import { pickArtwork } from "./art-picker";
+import {
+  clearConfig,
+  DEFAULT_LABEL,
+  describeConfig,
+  HELP_TEXT,
+  loadConfig,
+  parseHeaderCommand,
+  saveConfig,
+  type HeaderConfig,
+} from "./label";
 
 const MUELSYSE: RGB = [242, 167, 198];
 const PEACH: RGB = [246, 188, 154];
 const LAVENDER: RGB = [199, 184, 245];
 const SKY: RGB = [159, 211, 242];
-const LABEL = "◈  MUELSYSE CYBERDECK  ◈";
 /** Fixed blank rows above the artwork (independent of terminal height). */
 export const TOP_PADDING = 1;
 
@@ -54,7 +63,11 @@ function centerPad(width: number, contentWidth: number, nudge = 0): string {
 }
 
 /** Header lines; every line fits within `width` columns and the height never depends on the terminal. */
-export function renderHeader(width: number, artwork: readonly string[] = ANIME_ART): string[] {
+export function renderHeader(
+  width: number,
+  artwork: readonly string[] = ANIME_ART,
+  label = DEFAULT_LABEL,
+): string[] {
   const w = Math.floor(width);
   if (!Number.isFinite(w) || w <= 0) return [];
 
@@ -73,8 +86,8 @@ export function renderHeader(width: number, artwork: readonly string[] = ANIME_A
   const railWidth = Math.max(1, artWidth - railInset * 2);
   const rail = `${centerPad(w, railWidth, 1)}${gradient("━".repeat(railWidth), MUELSYSE, SKY)}`;
 
-  const label = truncateToWidth(gradient(LABEL, LAVENDER, PEACH, true), w, "…");
-  const labelLine = `${centerPad(w, visibleWidth(label), 1)}${label}`;
+  const labelText = truncateToWidth(gradient(label, LAVENDER, PEACH, true), w, "…");
+  const labelLine = `${centerPad(w, visibleWidth(labelText), 1)}${labelText}`;
 
   return [...Array<string>(TOP_PADDING).fill(""), ...art, "", rail, labelLine, ""];
 }
@@ -84,6 +97,11 @@ function isInteractiveTui(ctx: Pick<ExtensionContext, "mode" | "hasUI">): boolea
 }
 
 export default function muelsyseCyberdeckHeader(pi: ExtensionAPI): void {
+  const loaded = loadConfig();
+  let config: HeaderConfig = loaded.config;
+  let configWarning = loaded.error
+    ? `Muelsyse header: could not read the label config (${loaded.error}); using the default label.`
+    : undefined;
   let artwork: readonly string[] = ANIME_ART;
   let ownFactory: (() => unknown) | undefined;
   let holdingSlot = false;
@@ -95,7 +113,7 @@ export default function muelsyseCyberdeckHeader(pi: ExtensionAPI): void {
     ownFactory = () => ({
       render(width: number): string[] {
         if (width !== cachedWidth) {
-          cachedLines = renderHeader(width, artwork);
+          cachedLines = renderHeader(width, artwork, config.label);
           cachedWidth = width;
         }
         return cachedLines;
@@ -131,6 +149,39 @@ export default function muelsyseCyberdeckHeader(pi: ExtensionAPI): void {
     );
     if (openTuiLoaded) holdHeaderSlot(ctx);
     installHeader(ctx);
+    if (configWarning) {
+      ctx.ui.notify(configWarning, "warning");
+      configWarning = undefined;
+    }
+  });
+
+  pi.registerCommand("muelsyse-header", {
+    description: "Show, set or reset the text under the header artwork",
+    handler: (args, ctx) => {
+      if (!isInteractiveTui(ctx)) {
+        ctx.ui.notify("The Muelsyse header label needs the interactive terminal UI.", "warning");
+        return;
+      }
+      const command = parseHeaderCommand(args);
+      if (command.type === "status") {
+        ctx.ui.notify(describeConfig(config), "info");
+        return;
+      }
+      if (command.type === "help") {
+        ctx.ui.notify(HELP_TEXT, "info");
+        return;
+      }
+      if (command.type === "invalid") {
+        ctx.ui.notify(`${command.message}\n${HELP_TEXT}`, "warning");
+        return;
+      }
+      const error = command.type === "reset" ? clearConfig() : saveConfig({ label: command.label });
+      config = command.type === "reset" ? { label: DEFAULT_LABEL } : { label: command.label };
+      installHeader(ctx);
+      const done = command.type === "reset" ? "Default Muelsyse label restored" : `Muelsyse label set to ${command.label}`;
+      if (error) ctx.ui.notify(`${done} (not saved: ${error})`, "warning");
+      else ctx.ui.notify(`${done}.`, "info");
+    },
   });
 
   pi.registerCommand("muelsyse-art", {

@@ -33,6 +33,17 @@ test("label truncates with an ellipsis at narrow widths", () => {
   assert.ok(wide.some((l) => l.includes("MUELSYSE CYBERDECK")));
 });
 
+test("a custom label replaces the default one and still fits the width", () => {
+  const lines = renderHeader(80, undefined, "MY DECK").map(strip);
+  assert.ok(lines.some((l) => l.includes("MY DECK")));
+  assert.ok(!lines.some((l) => l.includes("MUELSYSE CYBERDECK")));
+  for (const width of [1, 10, 40]) {
+    for (const line of renderHeader(width, undefined, "A VERY LONG CUSTOM LABEL")) {
+      assert.ok(visibleWidth(line) <= width, `width ${width}: ${visibleWidth(line)}`);
+    }
+  }
+});
+
 test("header only installs in TUI mode", async () => {
   const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
   muelsyseCyberdeckHeader({
@@ -41,7 +52,11 @@ test("header only installs in TUI mode", async () => {
     getCommands: () => [],
   } as never);
   let installs = 0;
-  const ui = { theme: { getColorMode: () => "truecolor" }, setHeader: (f: unknown) => void (f && installs++) };
+  const ui = {
+    theme: { getColorMode: () => "truecolor" },
+    notify: () => {},
+    setHeader: (f: unknown) => void (f && installs++),
+  };
   await handlers.get("session_start")!({}, { mode: "rpc", hasUI: true, ui });
   await handlers.get("session_start")!({}, { mode: "print", hasUI: false, ui });
   assert.equal(installs, 0);

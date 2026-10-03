@@ -10,7 +10,8 @@ export type PrototypePatchAdapter =
 	| "selector-border-render"
 	| "tool-execution-render"
 	| "tool-execution-mouse"
-	| "cockpit-bar-render";
+	| "cockpit-bar-render"
+	| "matrix-widget-order";
 
 export type PrototypeMethodName = "render" | "handleMouse";
 type PrototypeMethod = (this: unknown, ...args: unknown[]) => unknown;

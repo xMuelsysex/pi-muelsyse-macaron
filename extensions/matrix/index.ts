@@ -7,13 +7,18 @@
  * The widget slot is reserved once at `session_start` and kept for the whole session
  * (idle ⇒ zero rendered lines), because Pi renders widgets in registration order:
  * a slot re-registered later would land below every widget mounted meanwhile — the
- * Cockpit agent bar among them — and the rain has to stay above that bar.
+ * Cockpit agent bar among them — and the rain has to stay above that bar. When the
+ * pack itself loads after another extension (installed last), those widgets are
+ * already mounted, so the rain is reordered at render time instead of relying on
+ * the mount order (see `holdRainAboveWidgets`).
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { TUI } from "@earendil-works/pi-tui";
 import { fgAnsi, getColorMode, syncColorMode, type RGB } from "../shared/color";
+import { installPrototypePatch } from "../zentui/prototype-patch-registry";
 
 const WIDGET_KEY = "muelsyse-matrix-engine";
 export const CONFIG_PATH = join(getAgentDir(), "muelsyse-macaron-matrix.json");
@@ -250,6 +255,21 @@ function isInteractiveTui(ctx: Pick<ExtensionContext, "mode" | "hasUI">): boolea
 /** Idle renders nothing: the reserved slot must not occupy any row. */
 const NO_LINES: readonly string[] = [];
 
+/** A host container that renders its children in order (the above-editor widget slot is one). */
+type WidgetContainer = { children: unknown[]; render(width: number): string[] };
+
+/** The mounted container that renders `child`, searched depth-first from the TUI roots. */
+function findWidgetContainer(nodes: unknown, child: unknown): WidgetContainer | undefined {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    const container = node as Partial<WidgetContainer> | undefined;
+    if (!Array.isArray(container?.children) || typeof container.render !== "function") continue;
+    if (container.children.includes(child)) return container as WidgetContainer;
+    const nested = findWidgetContainer(container.children, child);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
 export default function muelsyseMatrixExtension(pi: ExtensionAPI): void {
   const loaded = loadConfig();
   const config = loaded.config;
@@ -268,6 +288,7 @@ export default function muelsyseMatrixExtension(pi: ExtensionAPI): void {
   let frame = 0;
   let generation = 0;
   let requestRender: (() => void) | undefined;
+  let releaseOrderPatch: (() => void) | undefined;
   let cachedKey = "";
   let cachedLines: string[] = [];
   const dropsByWidth = new Map<number, Drop[]>();
@@ -334,13 +355,41 @@ export default function muelsyseMatrixExtension(pi: ExtensionAPI): void {
     requestRender?.();
   };
 
-  /** Reserves the widget slot for this session — once, before other extensions mount theirs. */
+  /**
+   * Widgets render in mount order, so a pack installed last (after Cockpit, after any
+   * widget mounted meanwhile) would leave the rain below their rows. Reorder at render
+   * time instead: the rain keeps the row right after the container's leading spacer and
+   * every other widget — the agent bar included — stays below it.
+   */
+  const holdRainAboveWidgets = (tui: TUI) => {
+    const container = findWidgetContainer(tui.children, component);
+    if (!container) return;
+    releaseOrderPatch?.();
+    releaseOrderPatch = installPrototypePatch(
+      container,
+      "render",
+      "matrix-widget-order",
+      ({ predecessor, receiver, args }) => {
+        const children = (receiver as WidgetContainer).children;
+        const index = children.indexOf(component);
+        if (index > 1) {
+          children.splice(index, 1);
+          children.splice(1, 0, component);
+        }
+        return Reflect.apply(predecessor, receiver, args);
+      },
+    );
+  };
+
+  /** Reserves the widget slot for this session; the rain stays above widgets mounted by others. */
   const mountSlot = (ctx: ExtensionContext): boolean => {
     if (!isInteractiveTui(ctx)) return false;
     syncColorMode(ctx.ui.theme);
     try {
       ctx.ui.setWidget(WIDGET_KEY, (tui) => {
         requestRender = () => tui.requestRender();
+        // The host mounts the returned component right after this factory returns.
+        queueMicrotask(() => holdRainAboveWidgets(tui));
         return component;
       });
       return true;
@@ -405,7 +454,11 @@ export default function muelsyseMatrixExtension(pi: ExtensionAPI): void {
   });
   pi.on("agent_end", () => stop());
   pi.on("agent_settled", () => stop());
-  pi.on("session_shutdown", () => stop());
+  pi.on("session_shutdown", () => {
+    stop();
+    releaseOrderPatch?.();
+    releaseOrderPatch = undefined;
+  });
 
   pi.on("message_update", (event) => {
     if (!active) return;

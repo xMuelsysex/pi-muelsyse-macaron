@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { Container, Spacer } from "@earendil-works/pi-tui";
 import {
   createDrops,
   DEFAULT_CONFIG,
@@ -85,6 +86,43 @@ test("rendered rows fit the width and match the configured height", () => {
 
 test("describeConfig summarizes state", () => {
   assert.equal(describeConfig({ ...DEFAULT_CONFIG }), "Muelsyse Matrix: off · 10 FPS · 4 lines · density 0.65");
+});
+
+test("the rain keeps rendering above widgets mounted before it", async () => {
+  const { default: matrix } = await import("../extensions/matrix/index");
+  const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
+  let command: { handler: (args: string, ctx: unknown) => Promise<void> } | undefined;
+  // The host's above-editor slot: a Container with its leading Spacer, already holding
+  // another extension's widget because the pack was installed last.
+  const slot = new Container();
+  slot.addChild(new Spacer(1));
+  const otherWidget = { render: () => ["agent bar"], invalidate() {} };
+  slot.addChild(otherWidget);
+  const containerChildren = () => slot.children;
+  const pi = {
+    on: (name: string, fn: (event: unknown, ctx: unknown) => unknown) => void handlers.set(name, fn),
+    registerCommand: (_name: string, options: typeof command) => void (command = options),
+  };
+  const ui = {
+    theme: { getColorMode: () => "truecolor" },
+    notify: () => {},
+    setWidget: (_key: string, content?: unknown) => {
+      const factory = content as (tui: unknown, theme: unknown) => { render(width: number): string[] };
+      slot.addChild(factory({ children: [slot], requestRender: () => {} }, {}));
+    },
+  };
+  matrix(pi as never);
+  const tui = { mode: "tui", hasUI: true, ui, isIdle: () => true };
+
+  handlers.get("session_start")!({ type: "session_start" }, tui);
+  await command!.handler("preview", tui);
+  await Promise.resolve();
+
+  assert.equal(containerChildren().length, 3, "the rain is still mounted after the other widget");
+  const lines = slot.render(80);
+  assert.deepEqual(lines[0], "", "the leading spacer stays first");
+  assert.deepEqual(lines.at(-1), "agent bar", "the other widget renders below the rain");
+  assert.ok(lines.length > 2, "the rain paints its rows in between");
 });
 
 test("extension never touches Pi's working message/indicator and only animates in TUI", async () => {

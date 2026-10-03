@@ -4,11 +4,21 @@ import { renderMuelsyseGradient } from "./gradient";
 import { installPrototypePatch } from "./prototype-patch-registry";
 
 type ComponentTree = Component & { children?: ComponentTree[] };
+type WorkingStatusEditor = Component & { embedWorkingStatus?: boolean };
 const GRADIENT_ROLES = new Set([
 	"accent", "border", "borderAccent", "borderMuted", "mdLink",
 	"thinkingOff", "thinkingMinimal", "thinkingLow", "thinkingMedium",
 	"thinkingHigh", "thinkingXhigh", "thinkingMax",
 ]);
+
+/**
+ * Open TUI 的编辑器声明 `embedWorkingStatus`，宿主的 working 行就会被画进输入框上边框；
+ * 本包编辑器（以及不带 Open TUI 时的默认外观）把它留在宿主的 status 行，位于雨和 agents 栏之上。
+ * 两者并存时统一成后者：只关掉这个声明，宿主自行渲染指示器，其余（消息、指示帧、边框色）不变。
+ */
+function restoreHostWorkingLine(editor: Component): void {
+	(editor as WorkingStatusEditor).embedWorkingStatus = false;
+}
 
 /** 只在插件组件的同步渲染期间改色，保留错误、警告和 Bash 模式状态色。 */
 function renderWithGradient(render: () => unknown): unknown {
@@ -55,6 +65,7 @@ export function installOpenTuiGradient(
 		original(factory && ((tui, theme, keybindings) => {
 			const editor = factory(tui, theme, keybindings);
 			if (active && editor.constructor.name === "OpenTuiEditor") {
+				restoreHostWorkingLine(editor);
 				decorate(editor);
 				decorateChrome(tui);
 				setRequestRender(() => tui.requestRender());
