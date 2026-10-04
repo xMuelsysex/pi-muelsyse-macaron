@@ -58,6 +58,13 @@ const branchLengthPresetValues = ["full", "10", "20", "30", "40", "50"] as const
 const iconModeValues: IconMode[] = ["auto", "nerd", "ascii"];
 const statusLineOwnerValues: StatusLineOwner[] = ["pi-open-tui", "native"];
 const STATUS_LINE_OWNER_SETTING_ID = "statusLineOwner";
+const STATUS_LINE_OWNER_LABEL = "Bottom bar & input source";
+/** 本项目自己的包名，用作界面归属选项的显示名（中英界面一致，不用“本包”这种自称）。 */
+const PACK_PACKAGE_NAME = "pi-muelsyse-macaron";
+const statusLineOwnerDisplay: Record<StatusLineOwner, string> = {
+	"pi-open-tui": "pi-open-tui",
+	native: PACK_PACKAGE_NAME,
+};
 type FeatureState = "enabled" | "disabled";
 
 const featureStateValues: FeatureState[] = ["enabled", "disabled"];
@@ -465,7 +472,7 @@ function buildItems(
 	openTuiLoaded: boolean,
 ): SettingItem[] {
 	// Open TUI 在场且主人把底栏交给它时，遥测、缓存命中率与扩展状态项都显示为它接管。
-	const openTuiOwnsStatusLine = openTuiLoaded && config.statusLineOwner === "pi-open-tui";
+	const openTuiOwnsChrome = openTuiLoaded && config.statusLineOwner === "pi-open-tui";
 	if (section === "coloring") {
 		return (Object.keys(colorSettingLabels) as ColorSettingId[]).map((key) => ({
 			id: key,
@@ -494,12 +501,11 @@ function buildItems(
 			values: ["zh-CN", "en"],
 		});
 		if (openTuiLoaded) {
-			// 底栏归属只在与 Open TUI 共存时可以选，紧跟在状态栏开关后面。
+			// 界面归属只在与 Open TUI 共存时可以选，紧跟在状态栏开关后面。
 			items.splice(items.findIndex((item) => item.id === "statusLine") + 1, 0, {
 				id: STATUS_LINE_OWNER_SETTING_ID,
-				label: "Status line source",
-				description:
-					"pi-open-tui is loaded: choose whether the bottom bar is drawn by pi-open-tui or by this pack. Changes apply immediately.",
+				label: STATUS_LINE_OWNER_LABEL,
+				description: `pi-open-tui is loaded: choose whether the bottom bar and the input box are drawn by pi-open-tui or by ${PACK_PACKAGE_NAME}. Changes apply immediately.`,
 				currentValue: config.statusLineOwner,
 				values: statusLineOwnerValues,
 			});
@@ -564,7 +570,7 @@ function buildItems(
 	}
 
 	if (section === "telemetry") {
-		if (openTuiOwnsStatusLine) return [{
+		if (openTuiOwnsChrome) return [{
 			id: "telemetry:owned",
 			label: "Telemetry",
 			description: "Telemetry is managed by /open-tui; its original tracking, display, and settings are preserved.",
@@ -581,7 +587,7 @@ function buildItems(
 
 	if (section === "builtinSegments") {
 		return (Object.keys(footerSegmentSettingLabels) as FooterSegmentSettingId[]).map((key) => {
-			if (key === "cacheHit" && openTuiOwnsStatusLine) {
+			if (key === "cacheHit" && openTuiOwnsChrome) {
 				return {
 					id: footerSegmentSettingId(key),
 					label: footerSegmentSettingLabels[key],
@@ -610,7 +616,7 @@ function buildItems(
 			{
 				id: "noThirdPartyStatuses",
 				label: "No active statuses",
-				description: openTuiOwnsStatusLine
+				description: openTuiOwnsChrome
 					? "Live statuses are read through this pack's footer, and /open-tui currently owns the footer, so none can be listed."
 					: "This tab only lists statuses currently published through ctx.ui.setStatus().",
 				currentValue: "—",
@@ -755,10 +761,16 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 					tui.requestRender();
 				};
 				let settingsList: SettingsList;
-				const displayValue = (value: string) => value === "zh-CN" ? "简体中文" : value === "en" ? "English" : t(value);
+				/** Open TUI 是否在场：每次重绘前重新问一次宿主。 */
+				const openTuiLoaded = () =>
+					pi.getCommands().some((command) => command.source === "extension" && command.name === "open-tui");
+				const displayValue = (value: string) =>
+					value === "zh-CN" ? "简体中文"
+						: value === "en" ? "English"
+							: isStatusLineOwner(value) ? statusLineOwnerDisplay[value]
+								: t(value);
 				const makeSettingsList = () => {
-					const items = buildItems(activeSection, deps.getConfig(), deps.getActiveExtensionStatuses(),
-						pi.getCommands().some((command) => command.source === "extension" && command.name === "open-tui"));
+					const items = buildItems(activeSection, deps.getConfig(), deps.getActiveExtensionStatuses(), openTuiLoaded());
 					return new SettingsList(
 						items.map((item) => ({
 							...item,
@@ -792,10 +804,26 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 								}
 
 								if (id === STATUS_LINE_OWNER_SETTING_ID && isStatusLineOwner(newValue)) {
-									deps.setStatusLineOwner(newValue, ctx);
+									// 输入框跟着界面归属一起换：改编辑器组件时必须先关掉这个覆盖层，
+									// 否则 ctx.ui.custom() 的输入循环会卡住（与编辑器开关同一处理）。
+									const swapsEditor = openTuiLoaded() && deps.getConfig().features.editor;
+									if (swapsEditor) done(undefined);
+									const applyOwnerChange = () => {
+										try {
+											deps.setStatusLineOwner(newValue, ctx);
+											deps.requestRender();
+											ctx.ui.notify(`${t(STATUS_LINE_OWNER_LABEL)}: ${displayValue(newValue)}`, "info");
+										} catch (error) {
+											const message = error instanceof Error ? error.message : String(error);
+											ctx.ui.notify(`${t("Could not update Zentui settings")}: ${message}`, "error");
+										}
+									};
+									if (swapsEditor) {
+										deps.sessionLifecycle.defer(applyOwnerChange);
+										return;
+									}
+									applyOwnerChange();
 									settingsList.updateValue(id, displayValue(newValue));
-									deps.requestRender();
-									ctx.ui.notify(`${t("Status line source")}: ${displayValue(newValue)}`, "info");
 									tui.requestRender();
 									return;
 								}

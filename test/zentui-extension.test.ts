@@ -121,6 +121,7 @@ test("the footer follows the status line owner when pi-open-tui is loaded", asyn
 	const handoverCtx = makeCtx();
 	await emit("session_start", {}, handoverCtx.ctx);
 	assert.equal(handoverCtx.footerFactory(), undefined, "pi-open-tui keeps the footer by default");
+	assert.equal(handoverCtx.editor(), undefined, "…and the input box");
 	await emit("session_shutdown", {}, handoverCtx.ctx);
 
 	writeFileSync(configFile, JSON.stringify({ statusLineOwner: "native" }));
@@ -128,6 +129,7 @@ test("the footer follows the status line owner when pi-open-tui is loaded", asyn
 	const packCtx = makeCtx();
 	await emit("session_start", {}, packCtx.ctx);
 	assert.ok(packCtx.footerFactory(), "choosing this pack installs its footer with pi-open-tui loaded");
+	assert.ok(packCtx.editor(), "choosing this pack takes the input box over as well");
 	await emit("session_shutdown", {}, packCtx.ctx);
 	assert.equal(packCtx.footerFactory(), undefined, "the pack's footer is cleared on shutdown");
 });

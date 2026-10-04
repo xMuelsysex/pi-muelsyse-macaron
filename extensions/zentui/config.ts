@@ -70,8 +70,9 @@ export type AnimationsConfig = {
 };
 
 /**
- * Which extension draws the host footer when `pi-open-tui` is loaded.
- * Both extensions register into Pi's single footer slot, so the owner has to be explicit.
+ * Which extension draws the host chrome — the bottom bar and the input box — when `pi-open-tui` is
+ * loaded. Both extensions register into Pi's single footer and editor slots, so the owner has to be
+ * explicit: `"pi-open-tui"` steps aside, `"native"` gives both surfaces to this pack.
  */
 export type StatusLineOwner = "pi-open-tui" | "native";
 

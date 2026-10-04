@@ -83,8 +83,6 @@ type ApplyUiResult = {
 	editorBlocked: boolean;
 };
 
-type EditorInstallMode = "none" | "standalone" | "wrapper";
-
 function isZentuiEditorFactory(factory: EditorFactory | undefined): boolean {
 	return Boolean((factory as ZentuiEditorFactory | undefined)?.[ZENTUI_EDITOR_FACTORY]);
 }
@@ -145,7 +143,6 @@ export default function (pi: ExtensionAPI) {
 	let cleanupPrototypePatches: () => void = () => {};
 	let footerInstalled = false;
 	let editorInstalled = false;
-	let editorInstallMode: EditorInstallMode = "none";
 	let installedEditorFactory: EditorFactory | undefined;
 	let wrappedEditorFactory: EditorFactory | undefined;
 	let prototypePatchesInstalled = false;
@@ -156,16 +153,16 @@ export default function (pi: ExtensionAPI) {
 	let fixedEditorNoticeShown = false;
 
 	/**
-	 * Open TUI 在场且主人把底栏交给它时，本包不装页脚、不跑遥测。
-	 * 其余（页脚、遥测、设置里的接管提示）都看这一个判断，而不是“是否载入 Open TUI”。
+	 * Open TUI 在场且主人把界面交给它时，本包不装输入框、不装页脚、不跑遥测。
+	 * 其余（输入框、页脚、遥测、设置里的接管提示）都看这一个判断，而不是“是否载入 Open TUI”。
 	 */
-	const openTuiOwnsStatusLine = () =>
+	const openTuiOwnsChrome = () =>
 		openTuiLoaded && currentConfig.statusLineOwner === "pi-open-tui";
 
 	// 加载期打补丁：早于所有 session_start，页脚归属与包顺序无关。
 	// 本包持有底栏期间拒绝其它扩展的页脚，主人的选择不会被后来的安装顺序推翻。
 	installStatusLineSlot({
-		holdsSlot: () => openTuiLoaded && !openTuiOwnsStatusLine() && currentConfig.features.statusLine,
+		holdsSlot: () => openTuiLoaded && !openTuiOwnsChrome() && currentConfig.features.statusLine,
 		rememberForeignFactory: (factory) => {
 			foreignStatusLineFactory = factory;
 		},
@@ -367,32 +364,41 @@ export default function (pi: ExtensionAPI) {
 			nextFactory = currentZentuiBaseFactory
 				? makeWrappedEditorFactory(ctx, currentZentuiBaseFactory)
 				: makeEditorFactory(ctx);
-			editorInstallMode = currentZentuiBaseFactory ? "wrapper" : "standalone";
+		} else if (currentFactory && openTuiLoaded) {
+			// Open TUI 的编辑器自带竖线与圆角，包一层会双竖线；界面归本包时整块换成 Zentui 的编辑器，
+			// 但记住它的工厂，主人切回 Open TUI 时原样装回。
+			wrappedEditorFactory = currentFactory;
+			nextFactory = makeEditorFactory(ctx);
 		} else if (currentFactory) {
 			wrappedEditorFactory = currentFactory;
 			nextFactory = makeWrappedEditorFactory(ctx, currentFactory);
-			editorInstallMode = "wrapper";
 		} else {
 			wrappedEditorFactory = undefined;
 			nextFactory = makeEditorFactory(ctx);
-			editorInstallMode = "standalone";
 		}
 		ctx.ui.setEditorComponent(nextFactory);
-		installedEditorFactory = nextFactory;
+		// 记宿主真正持有的工厂：open-tui 在场时它会再包一层 setEditorComponent，
+		// 记下自己那个原始工厂会认不出当前编辑器，切回时拒绝卸载。
+		installedEditorFactory = ctx.ui.getEditorComponent() ?? nextFactory;
 		editorInstalled = true;
 		return true;
 	};
 
 	const uninstallEditor = (ctx: ExtensionContext): boolean => {
 		const currentFactory = ctx.ui.getEditorComponent();
-		if (currentFactory && !isZentuiEditorFactory(currentFactory)) return false;
+		if (
+			currentFactory &&
+			currentFactory !== installedEditorFactory &&
+			!isZentuiEditorFactory(currentFactory)
+		) {
+			return false;
+		}
 
-		ctx.ui.setEditorComponent(
-			editorInstallMode === "wrapper" && wrappedEditorFactory ? wrappedEditorFactory : undefined,
-		);
+		// 记下过的原编辑器（被包装的，或整块替换前 Open TUI 的）都要装回；
+		// 真正独立安装（本来没有其它编辑器）时才交还 Pi 的默认编辑器。
+		ctx.ui.setEditorComponent(wrappedEditorFactory);
 		wrappedEditorFactory = undefined;
 		installedEditorFactory = undefined;
-		editorInstallMode = "none";
 		editorInstalled = false;
 		return true;
 	};
@@ -459,7 +465,7 @@ export default function (pi: ExtensionAPI) {
 		if (currentConfig.features.messageStyle) installPrototypePatches(ctx);
 		else if (prototypePatchesInstalled) uninstallPrototypePatches(ctx);
 
-		if (!openTuiLoaded && currentConfig.features.editor) {
+		if (currentConfig.features.editor && !openTuiOwnsChrome()) {
 			const currentFactory = ctx.ui.getEditorComponent();
 			const editorMissingOrReplaced = !editorInstalled || !isZentuiEditorFactory(currentFactory);
 			if (editorMissingOrReplaced) result.editorBlocked = !installEditor(ctx);
@@ -467,7 +473,7 @@ export default function (pi: ExtensionAPI) {
 			result.editorBlocked = !uninstallEditor(ctx);
 		}
 
-		if (currentConfig.features.statusLine && !openTuiOwnsStatusLine()) {
+		if (currentConfig.features.statusLine && !openTuiOwnsChrome()) {
 			installStatusLine(ctx);
 		} else if (footerInstalled) {
 			uninstallStatusLine(ctx);
@@ -542,7 +548,7 @@ export default function (pi: ExtensionAPI) {
 
 	const scheduleEditorReconciliation = (ctx: ExtensionContext) => {
 		sessionLifecycle.defer(() => {
-			if (!isTuiContext(ctx) || openTuiLoaded || !currentConfig.features.editor) return;
+			if (!isTuiContext(ctx) || openTuiOwnsChrome() || !currentConfig.features.editor) return;
 			const currentFactory = ctx.ui.getEditorComponent();
 			if (currentFactory && currentFactory !== installedEditorFactory) {
 				applyConfiguredUi(ctx);
@@ -575,17 +581,13 @@ export default function (pi: ExtensionAPI) {
 				const currentFactory = ctx.ui.getEditorComponent();
 				if (!currentFactory || isZentuiEditorFactory(currentFactory)) {
 					ctx.ui.setEditorComponent(
-						getZentuiEditorBaseFactory(currentFactory) ??
-							(editorInstallMode === "wrapper" && wrappedEditorFactory
-								? wrappedEditorFactory
-								: undefined),
+						getZentuiEditorBaseFactory(currentFactory) ?? wrappedEditorFactory,
 					);
 				}
 			}
 		} finally {
 			wrappedEditorFactory = undefined;
 			installedEditorFactory = undefined;
-			editorInstallMode = "none";
 			footerInstalled = false;
 			editorInstalled = false;
 			activeTheme = undefined;
@@ -635,7 +637,7 @@ export default function (pi: ExtensionAPI) {
 			if (!isTuiContext(ctx)) return;
 			applyConfiguredUi(ctx);
 			// 交还底栏：装回先前被挡在槽位外的页脚（Open TUI 每会话只装一次，不会自己回来）。
-			if (openTuiOwnsStatusLine() && foreignStatusLineFactory) {
+			if (openTuiOwnsChrome() && foreignStatusLineFactory) {
 				ctx.ui.setFooter(foreignStatusLineFactory);
 			}
 		},
@@ -698,7 +700,7 @@ export default function (pi: ExtensionAPI) {
 		cancelTelemetryNotice?.();
 		cancelTelemetryNotice = undefined;
 		completionNotice = undefined;
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 		liveContext.clear();
 		agentWorking = true;
 		syncFooterAnimation?.();
@@ -716,16 +718,16 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("thinking_level_select", syncInteractiveState);
 	pi.on("turn_start", (event) => {
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 	});
 	pi.on("message_start", (event) => {
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 	});
 	pi.on("turn_end", (event) => {
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 	});
 	pi.on("agent_settled", (event, ctx) => {
-		if (openTuiOwnsStatusLine()) return;
+		if (openTuiOwnsChrome()) return;
 		const telemetry = telemetryTracker.handle(event);
 		if (!telemetry || !currentConfig.telemetry.enabled || !isTuiContext(ctx)) return;
 		// Pi 会复用最后一条普通状态行；等本轮其他完成提示处理后再显示遥测。
@@ -737,11 +739,11 @@ export default function (pi: ExtensionAPI) {
 		});
 	});
 	pi.on("message_update", (event) => {
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 		liveContext.update(event.message);
 	});
 	pi.on("message_end", (event, ctx) => {
-		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
+		if (!openTuiOwnsChrome()) telemetryTracker.handle(event);
 		// Pi notifies extensions before persisting a successful message, so retain its live
 		// context until agent_end; failed messages clear immediately instead of showing stale usage.
 		if (

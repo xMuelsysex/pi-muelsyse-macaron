@@ -10,6 +10,12 @@ import {
 	usageText,
 } from "../extensions/zentui/settings-command";
 
+test("the interface-owner texts name the project instead of a self-reference", () => {
+	assert.equal(settingsText("Bottom bar & input source", "zh-CN"), "底栏与输入框来源");
+	assert.equal(settingsText("native", "zh-CN"), "native", "the option label is not translated into 本包");
+	assert.equal(settingsText("pi-muelsyse-macaron", "zh-CN"), "pi-muelsyse-macaron");
+});
+
 test("direct commands require an exact target and action", () => {
 	assert.deepEqual(parseDirectCommand("editor disable", defaultConfig), {
 		kind: "feature",
