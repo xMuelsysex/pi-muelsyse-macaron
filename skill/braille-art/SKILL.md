@@ -5,7 +5,7 @@ description: 把位图做成终端字符画（Braille 单元 + 真彩色 ANSI）
 
 # 终端字符画（Braille + 真彩色）
 
-**命令一律用本 skill 目录下的脚本**（`<skill>` 指本文件所在目录，通常是 `~/.pi/agent/skills/braille-art`）：`python3 ~/.pi/agent/skills/braille-art/scripts/braille_art.py`。依赖 Pillow；预览默认用 `fc-match` 找到的 Braille 字体。
+**命令一律用与本文件同级的脚本**：`python3 scripts/braille_art.py`（路径相对本 skill 目录，即 `SKILL.md` 所在目录；在别处调用时加上该目录前缀）。依赖 Pillow；预览默认用 `fc-match` 找到的 Braille 字体。
 
 ## 单元与产物
 
@@ -20,7 +20,7 @@ description: 把位图做成终端字符画（Braille 单元 + 真彩色 ANSI）
 ## 生成
 
 ```bash
-python3 ~/.pi/agent/skills/braille-art/scripts/braille_art.py portrait.png --cols 72 --rows 9 --out header
+python3 scripts/braille_art.py portrait.png --cols 72 --rows 9 --out header
 # 写出 header.txt / header.ansi / header.png，并打印网格、阈值与点亮比例
 ```
 
@@ -60,9 +60,9 @@ python3 ~/.pi/agent/skills/braille-art/scripts/braille_art.py portrait.png --col
 改已有 `.ansi` 的点位（局部修轮廓、补指缝之类）后：
 
 ```bash
-python3 ~/.pi/agent/skills/braille-art/scripts/braille_art.py --render header.ansi --out header.png   # 重出预览
-python3 ~/.pi/agent/skills/braille-art/scripts/braille_art.py --verify header.ansi \
-        --against header.old.ansi --mask 38,2,43,5 --txt header.txt                                 # 校验不变量
+python3 scripts/braille_art.py --render header.ansi --out header.png   # 重出预览
+python3 scripts/braille_art.py --verify header.ansi \
+        --against header.old.ansi --mask 38,2,43,5 --txt header.txt      # 校验不变量
 ```
 
 `--mask X0,Y0,X1,Y1` 是允许变化的单元矩形（右下开区间）；不给就要求逐点全等。校验项：尺寸不变、mask 外逐点（字符 + 颜色）一致、去色文本与 `.txt` 一致。**三件套必须同步更新**。
