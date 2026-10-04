@@ -146,6 +146,8 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 }
 ```
 
+未写的 `colors.*` 项按所属配色来源取默认值（`/zentui` →「配色」）：`终端` 用本包品牌马卡龙 hex，`主题` 用主题角色名。选 `主题` 时底栏与编辑器颜色跟随活动主题——Noctalia 动态生成的主题会随壁纸换色。
+
 字符雨配置位于 `~/.pi/agent/muelsyse-macaron-matrix.json`，通过 `/muelsyse-matrix` 修改。`on` 开启的是“工作时自动播放”，空闲时不常驻；`preview` 可立即预览 5 秒。字符雨始终位于其他扩展的输入框上方组件（例如 Cockpit 的 agents 栏）之上，与本包在 `packages` 中的加载顺序无关。
 
 ## 命令

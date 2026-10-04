@@ -226,7 +226,8 @@ const configPath = join(getAgentDir(), "muelsyse-macaron-zentui.json");
 // never drift apart again.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_COLORS: PolishedTuiConfig["colors"] = {
+/** Brand macaron shades as literals: the `terminal` color source, unchanged by the active theme. */
+const TERMINAL_COLORS: PolishedTuiConfig["colors"] = {
 	cwd: "bold #F2A7C6",
 	gitBranch: "bold #C7B8F5",
 	gitStatus: "bold #F6BC9A",
@@ -259,6 +260,77 @@ const DEFAULT_COLORS: PolishedTuiConfig["colors"] = {
 	editorThinkingXhigh: "bold #C7B8F5",
 	editorThinkingMax: "bold #FF8FA3",
 };
+
+/**
+ * The same macaron shades expressed as theme roles: the `theme` color source, so the chrome follows
+ * the active theme — a Noctalia-generated theme recolors the bottom bar with the wallpaper.
+ * Trailing comments name the brand shade each role resolves to under this pack's own theme;
+ * `separator`, `editorProvider` and `editorThinkingMinimal` have no exact role and sit on `muted`.
+ */
+const THEME_COLORS: PolishedTuiConfig["colors"] = {
+	cwd: "bold accent", // bold #F2A7C6
+	gitBranch: "bold syntaxVariable", // bold #C7B8F5
+	gitStatus: "bold syntaxType", // bold #F6BC9A
+	contextNormal: "syntaxFunction", // #9FD3F2
+	contextWarning: "bold warning", // bold #F3D98B
+	contextError: "bold error", // bold #FF8FA3
+	tokens: "muted", // #A99BAE
+	cost: "mdCode", // #F6BC9A
+	separator: "muted", // #877C8F; "dim" is a terminal modifier, not a theme role
+	runtimePrefix: "syntaxFunction", // #9FD3F2
+	extensionStatus: "syntaxOperator", // #EFC3E6
+	sessionDuration: "warning", // #F3D98B
+	packageVersion: "syntaxType", // #F6BC9A
+	gitCommit: "success", // #AEE5C5
+	gitMetricsAdded: "success", // #AEE5C5
+	gitMetricsDeleted: "error", // #FF8FA3
+	username: "warning", // #F3D98B
+	time: "warning", // #F3D98B
+	os: "text", // #F7EEF8
+	editorAccent: "bold accent", // bold #F2A7C6
+	editorPrompt: "bold accent", // bold #F2A7C6
+	editorBorder: "muelsyse-macaron-gradient", // gradient sentinel; the source does not apply
+	editorModel: "bold accent", // bold #F2A7C6
+	editorProvider: "muted", // #B8BEDD
+	editorThinking: "syntaxVariable", // #C7B8F5
+	editorThinkingMinimal: "thinkingMinimal", // #877C8F
+	editorThinkingLow: "thinkingLow", // #9FD3F2
+	editorThinkingMedium: "thinkingMedium", // #EFC3E6
+	editorThinkingHigh: "bold thinkingHigh", // bold #F2A7C6
+	editorThinkingXhigh: "bold thinkingXhigh", // bold #C7B8F5
+	editorThinkingMax: "bold thinkingMax", // bold #FF8FA3
+};
+
+/** Keys the editor color source owns; every other key follows the starship (footer) source. */
+const EDITOR_COLOR_KEYS = new Set<string>([
+	"editorAccent",
+	"editorPrompt",
+	"editorBorder",
+	"editorModel",
+	"editorProvider",
+	"editorThinking",
+	"editorThinkingMinimal",
+	"editorThinkingLow",
+	"editorThinkingMedium",
+	"editorThinkingHigh",
+	"editorThinkingXhigh",
+	"editorThinkingMax",
+]);
+
+/**
+ * Palette the unset color keys fall back to, chosen per key by its color source. The gradient
+ * sentinel is source-independent; a config value always wins over both palettes.
+ */
+function defaultColors(sources: ColorSourcesConfig): PolishedTuiConfig["colors"] {
+	return Object.fromEntries(
+		(Object.keys(TERMINAL_COLORS) as (keyof PolishedTuiConfig["colors"])[]).map((key) => [
+			key,
+			(EDITOR_COLOR_KEYS.has(key) ? sources.editor : sources.starship) === "theme"
+				? THEME_COLORS[key]
+				: TERMINAL_COLORS[key],
+		]),
+	) as PolishedTuiConfig["colors"];
+}
 
 const DEFAULT_COLOR_SOURCES: ColorSourcesConfig = {
 	starship: "terminal",
@@ -751,6 +823,9 @@ export function mergeConfig(parsed: unknown): PolishedTuiConfig {
 	const config = isRecord(parsed) ? parsed : {};
 	const iconsRecord = isRecord(config.icons) ? config.icons : {};
 	const colors = isRecord(config.colors) ? normalizeColors(config.colors) : {};
+	const colorSources = isRecord(config.colorSources)
+		? normalizeColorSources(config.colorSources)
+		: { ...DEFAULT_COLOR_SOURCES };
 	const extensionStatuses = isRecord(config.extensionStatuses)
 		? normalizeExtensionStatuses(config.extensionStatuses)
 		: {
@@ -771,10 +846,8 @@ export function mergeConfig(parsed: unknown): PolishedTuiConfig {
 			normalizeIconMode(iconsRecord.mode),
 			normalizeIconOverrides(iconsRecord),
 		),
-		colors: { ...DEFAULT_COLORS, ...colors },
-		colorSources: isRecord(config.colorSources)
-			? normalizeColorSources(config.colorSources)
-			: { ...DEFAULT_COLOR_SOURCES },
+		colors: { ...defaultColors(colorSources), ...colors },
+		colorSources,
 		features: isRecord(config.features)
 			? normalizeUiFeatures(config.features)
 			: { ...DEFAULT_FEATURES },

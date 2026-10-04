@@ -16,6 +16,9 @@ import {
 	saveUiFeaturesPatch,
 } from "../extensions/zentui/config";
 import { collectExtensionStatusSegments } from "../extensions/zentui/extension-status";
+import { isSupportedColorSpec } from "../extensions/zentui/style";
+
+const THEME_MODIFIERS = new Set(["bold", "italic", "underline"]);
 
 function tempConfig(content?: string): string {
 	const path = join(mkdtempSync(join(tmpdir(), "zentui-config-")), "zentui.json");
@@ -37,6 +40,42 @@ test("defaults have a single source of truth", () => {
 	const ascii = mergeConfig({ icons: { mode: "ascii" } });
 	assert.equal(ascii.icons.rail, "|");
 	assert.equal(ascii.icons.editorPrompt, "");
+});
+
+test("chrome colors follow the active theme under the theme source", () => {
+	const themed = mergeConfig({ colorSources: { starship: "theme", editor: "theme" } });
+	assert.equal(themed.colors.cwd, "bold accent");
+	assert.equal(themed.colors.contextNormal, "syntaxFunction");
+	assert.equal(themed.colors.editorThinkingMax, "bold thinkingMax");
+	for (const [key, value] of Object.entries(themed.colors)) {
+		if (key === "editorBorder") continue;
+		assert.ok(!value.includes("#"), `${key} must not pin a literal color: ${value}`);
+		assert.ok(isSupportedColorSpec(value), `${key} must be a supported style: ${value}`);
+	}
+
+	const branded = mergeConfig({ colorSources: { starship: "terminal", editor: "terminal" } });
+	assert.equal(branded.colors.cwd, "bold #F2A7C6");
+	assert.equal(branded.colors.editorThinkingMax, "bold #FF8FA3");
+
+	// Every theme-source role must exist in the pack's theme, which mirrors Pi's role table
+	// (scripts/check.mjs); an unknown role renders as plain text instead of a color.
+	const theme = JSON.parse(
+		readFileSync(new URL("../themes/muelsyse-macaron.json", import.meta.url), "utf8"),
+	) as { colors: Record<string, string> };
+	for (const [key, value] of Object.entries(themed.colors)) {
+		for (const token of value.split(/\s+/)) {
+			if (token === "" || token === "muelsyse-macaron-gradient" || THEME_MODIFIERS.has(token)) continue;
+			assert.ok(token in theme.colors, `${key} must use a real theme role: ${token}`);
+		}
+	}
+
+	// The two sources only differ on unset keys; an explicit value wins over both.
+	const pinned = mergeConfig({ colors: { cwd: "#123456" }, colorSources: { starship: "theme" } });
+	assert.equal(pinned.colors.cwd, "#123456");
+	// Starship and editor sources are independent.
+	const mixed = mergeConfig({ colorSources: { starship: "theme", editor: "terminal" } });
+	assert.equal(mixed.colors.cwd, "bold accent");
+	assert.equal(mixed.colors.editorThinkingMax, "bold #FF8FA3");
 });
 
 test("old configs with fixedEditor still load; the key is ignored", () => {

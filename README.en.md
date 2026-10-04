@@ -146,6 +146,8 @@ Settings default to Simplified Chinese. Use **`/zentui` → Features → “Lang
 }
 ```
 
+Unset `colors.*` keys take the palette of their color source (`/zentui` → Colors): `terminal` uses the pack's brand hexes, `theme` uses theme role names. With `theme`, the bottom bar and editor follow the active theme — a Noctalia-generated theme recolors them with the wallpaper.
+
 Matrix settings live in `~/.pi/agent/muelsyse-macaron-matrix.json` (edit with `/muelsyse-matrix`). The rain always renders above other extensions' above-editor widgets (Cockpit's agent bar among them), whatever order the pack is loaded in.
 
 ## Commands
