@@ -8,6 +8,7 @@ import {
 	sanitizeDisplayText,
 } from "./extension-status";
 import { parseFooterFormat, renderFormatSplit, stripOrphanSeparators } from "./footer-format";
+import { markZentuiStatusLineFactory } from "./status-line-slot";
 import {
 	buildCacheHitLabel,
 	cacheHitColor,
@@ -217,7 +218,8 @@ export function installFooter(
 	getConfig: () => PolishedTuiConfig,
 	hooks: FooterHooks,
 ): void {
-	ctx.ui.setFooter((tui, theme, footerData) => {
+	// The marker lets the footer slot patch tell this factory apart from other extensions' footers.
+	const factory = markZentuiStatusLineFactory((tui, theme, footerData) => {
 		const restoreSelection = cacheFullscreenSelection(tui);
 		hooks.setRequestRender(() => tui.requestRender());
 		hooks.setExtensionStatusesGetter?.(() => footerData.getExtensionStatuses());
@@ -703,4 +705,5 @@ export function installFooter(
 			return visibleWidth(body) <= width ? body : truncateToWidth(body, width, "");
 		}
 	});
+	ctx.ui.setFooter(factory);
 }

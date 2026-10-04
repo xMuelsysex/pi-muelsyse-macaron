@@ -32,9 +32,11 @@ import {
 	saveIconsModePatch,
 	savePathDisplayPatch,
 	saveSeparatorPatch,
+	saveStatusLineOwnerPatch,
 	saveUiFeaturesPatch,
 	saveTelemetryPatch,
 	saveLanguagePatch,
+	type StatusLineOwner,
 	type TelemetryConfig,
 	type UiFeaturesConfig,
 } from "./config";
@@ -45,6 +47,7 @@ import { emptyGitStatus, readGitStatus } from "./git";
 import { LiveContextController } from "./live-context";
 import { readPackageVersionResult } from "./package-version";
 import { installOpenTuiGradient } from "./open-tui";
+import { installStatusLineSlot, type StatusLineFactory } from "./status-line-slot";
 import { installCockpitBarGradient, releaseCockpitBarDecorations } from "./cockpit-bar";
 import {
 	createProjectRefreshScheduler,
@@ -125,6 +128,8 @@ export default function (pi: ExtensionAPI) {
 
 	let currentConfig: PolishedTuiConfig = defaultConfig;
 	let openTuiLoaded = false;
+	/** Footer factory pi-open-tui (or another extension) asked the host to mount while we held the slot. */
+	let foreignStatusLineFactory: StatusLineFactory | undefined;
 	let cockpitLoaded = false;
 	let cockpitOwnershipDisposer: (() => void) | undefined;
 	let cleanupOpenTuiGradient: (() => void) | undefined;
@@ -149,6 +154,22 @@ export default function (pi: ExtensionAPI) {
 	let agentWorking = false;
 	let lastConfigProblem: string | undefined;
 	let fixedEditorNoticeShown = false;
+
+	/**
+	 * Open TUI 在场且主人把底栏交给它时，本包不装页脚、不跑遥测。
+	 * 其余（页脚、遥测、设置里的接管提示）都看这一个判断，而不是“是否载入 Open TUI”。
+	 */
+	const openTuiOwnsStatusLine = () =>
+		openTuiLoaded && currentConfig.statusLineOwner === "pi-open-tui";
+
+	// 加载期打补丁：早于所有 session_start，页脚归属与包顺序无关。
+	// 本包持有底栏期间拒绝其它扩展的页脚，主人的选择不会被后来的安装顺序推翻。
+	installStatusLineSlot({
+		holdsSlot: () => openTuiLoaded && !openTuiOwnsStatusLine() && currentConfig.features.statusLine,
+		rememberForeignFactory: (factory) => {
+			foreignStatusLineFactory = factory;
+		},
+	});
 
 	const refresh = () => {
 		if (sessionLifecycle.isCurrent()) requestFooterRender?.();
@@ -446,7 +467,7 @@ export default function (pi: ExtensionAPI) {
 			result.editorBlocked = !uninstallEditor(ctx);
 		}
 
-		if (!openTuiLoaded && currentConfig.features.statusLine) {
+		if (currentConfig.features.statusLine && !openTuiOwnsStatusLine()) {
 			installStatusLine(ctx);
 		} else if (footerInstalled) {
 			uninstallStatusLine(ctx);
@@ -540,6 +561,8 @@ export default function (pi: ExtensionAPI) {
 			stopProjectRefresh();
 			cleanupOpenTuiGradient?.();
 			cleanupOpenTuiGradient = undefined;
+			// 下一个会话的工厂由下一个会话的安装记录，旧会话的不能再用。
+			foreignStatusLineFactory = undefined;
 			releaseCockpitBarDecorations();
 			uninstallPrototypePatches(isTuiContext(ctx) ? ctx : undefined);
 			cockpitOwnershipDisposer?.();
@@ -548,7 +571,7 @@ export default function (pi: ExtensionAPI) {
 			syncFooterAnimation = undefined;
 			getActiveExtensionStatuses = () => new Map();
 			if (isTuiContext(ctx)) {
-				if (!openTuiLoaded) ctx.ui.setFooter(undefined);
+				if (footerInstalled) ctx.ui.setFooter(undefined);
 				const currentFactory = ctx.ui.getEditorComponent();
 				if (!currentFactory || isZentuiEditorFactory(currentFactory)) {
 					ctx.ui.setEditorComponent(
@@ -606,6 +629,15 @@ export default function (pi: ExtensionAPI) {
 		},
 		setFooterSegments(patch: Partial<FooterSegmentsConfig>) {
 			applyConfig(saveFooterSegmentsPatch(patch));
+		},
+		setStatusLineOwner(owner: StatusLineOwner, ctx: ExtensionContext) {
+			applyConfig(saveStatusLineOwnerPatch(owner));
+			if (!isTuiContext(ctx)) return;
+			applyConfiguredUi(ctx);
+			// 交还底栏：装回先前被挡在槽位外的页脚（Open TUI 每会话只装一次，不会自己回来）。
+			if (openTuiOwnsStatusLine() && foreignStatusLineFactory) {
+				ctx.ui.setFooter(foreignStatusLineFactory);
+			}
 		},
 		setFooterFormat(value: string) {
 			applyConfig(saveFooterFormatPatch(value));
@@ -666,7 +698,7 @@ export default function (pi: ExtensionAPI) {
 		cancelTelemetryNotice?.();
 		cancelTelemetryNotice = undefined;
 		completionNotice = undefined;
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 		liveContext.clear();
 		agentWorking = true;
 		syncFooterAnimation?.();
@@ -684,16 +716,16 @@ export default function (pi: ExtensionAPI) {
 	});
 	pi.on("thinking_level_select", syncInteractiveState);
 	pi.on("turn_start", (event) => {
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 	});
 	pi.on("message_start", (event) => {
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 	});
 	pi.on("turn_end", (event) => {
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 	});
 	pi.on("agent_settled", (event, ctx) => {
-		if (openTuiLoaded) return;
+		if (openTuiOwnsStatusLine()) return;
 		const telemetry = telemetryTracker.handle(event);
 		if (!telemetry || !currentConfig.telemetry.enabled || !isTuiContext(ctx)) return;
 		// Pi 会复用最后一条普通状态行；等本轮其他完成提示处理后再显示遥测。
@@ -705,11 +737,11 @@ export default function (pi: ExtensionAPI) {
 		});
 	});
 	pi.on("message_update", (event) => {
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 		liveContext.update(event.message);
 	});
 	pi.on("message_end", (event, ctx) => {
-		if (!openTuiLoaded) telemetryTracker.handle(event);
+		if (!openTuiOwnsStatusLine()) telemetryTracker.handle(event);
 		// Pi notifies extensions before persisting a successful message, so retain its live
 		// context until agent_end; failed messages clear immediately instead of showing stale usage.
 		if (

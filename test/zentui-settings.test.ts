@@ -72,6 +72,7 @@ test("/zentui fixed-editor disable notifies instead of disabling the editor", as
 		setColorSources: unexpected("setColorSources"),
 		setUiFeatures: unexpected("setUiFeatures"),
 		setFooterSegments: unexpected("setFooterSegments"),
+		setStatusLineOwner: unexpected("setStatusLineOwner"),
 		setFooterFormat: unexpected("setFooterFormat"),
 		setIconMode: unexpected("setIconMode"),
 		setContextStyle: unexpected("setContextStyle"),

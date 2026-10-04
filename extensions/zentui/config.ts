@@ -69,6 +69,16 @@ export type AnimationsConfig = {
 	footerPulse: boolean;
 };
 
+/**
+ * Which extension draws the host footer when `pi-open-tui` is loaded.
+ * Both extensions register into Pi's single footer slot, so the owner has to be explicit.
+ */
+export type StatusLineOwner = "pi-open-tui" | "native";
+
+export function isStatusLineOwner(value: unknown): value is StatusLineOwner {
+	return value === "pi-open-tui" || value === "native";
+}
+
 export type TelemetryConfig = {
 	enabled: boolean;
 	tps: boolean;
@@ -183,6 +193,7 @@ export type PolishedTuiConfig = {
 	};
 	colorSources: ColorSourcesConfig;
 	features: UiFeaturesConfig;
+	statusLineOwner: StatusLineOwner;
 	animations: AnimationsConfig;
 	telemetry: TelemetryConfig;
 	footerSegments: FooterSegmentsConfig;
@@ -264,6 +275,9 @@ const DEFAULT_FEATURES: UiFeaturesConfig = {
 const DEFAULT_ANIMATIONS: AnimationsConfig = {
 	footerPulse: false,
 };
+
+/** Default keeps the pre-existing behaviour: a loaded Open TUI owns the footer. */
+const DEFAULT_STATUS_LINE_OWNER: StatusLineOwner = "pi-open-tui";
 
 const DEFAULT_TELEMETRY: TelemetryConfig = {
 	enabled: true,
@@ -763,6 +777,9 @@ export function mergeConfig(parsed: unknown): PolishedTuiConfig {
 		features: isRecord(config.features)
 			? normalizeUiFeatures(config.features)
 			: { ...DEFAULT_FEATURES },
+		statusLineOwner: isStatusLineOwner(config.statusLineOwner)
+			? config.statusLineOwner
+			: DEFAULT_STATUS_LINE_OWNER,
 		animations: normalizeAnimations(config.animations),
 		telemetry: normalizeTelemetry(config.telemetry),
 		footerSegments: isRecord(config.footerSegments)
@@ -887,6 +904,14 @@ export function saveFooterSegmentsPatch(
 			...validFooterSegmentEntries(patch),
 		};
 	});
+}
+
+export function saveStatusLineOwnerPatch(
+	owner: StatusLineOwner,
+	path = configPath,
+): PolishedTuiConfig {
+	if (!isStatusLineOwner(owner)) throw new Error(`Unsupported status line owner: ${owner}`);
+	return mutateConfig(path, (record) => { record.statusLineOwner = owner; });
 }
 
 export function saveFooterFormatPatch(value: string, path = configPath): PolishedTuiConfig {

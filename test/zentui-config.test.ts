@@ -12,6 +12,7 @@ import {
 	removeLegacyFixedEditorConfig,
 	saveAnimationsPatch,
 	saveExtensionStatusPlacement,
+	saveStatusLineOwnerPatch,
 	saveUiFeaturesPatch,
 } from "../extensions/zentui/config";
 import { collectExtensionStatusSegments } from "../extensions/zentui/extension-status";
@@ -74,6 +75,18 @@ test("missing config loads defaults without a problem; saves are atomic JSON", (
 	const saved = saveAnimationsPatch({ footerPulse: true }, path);
 	assert.equal(saved.animations.footerPulse, true);
 	assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { animations: { footerPulse: true } });
+});
+
+test("the status line owner defaults to pi-open-tui and round-trips", () => {
+	assert.equal(defaultConfig.statusLineOwner, "pi-open-tui");
+	assert.equal(mergeConfig({ statusLineOwner: "native" }).statusLineOwner, "native");
+	assert.equal(mergeConfig({ statusLineOwner: "zentui" }).statusLineOwner, "pi-open-tui");
+
+	const path = tempConfig();
+	const saved = saveStatusLineOwnerPatch("native", path);
+	assert.equal(saved.statusLineOwner, "native");
+	assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { statusLineOwner: "native" });
+	assert.throws(() => saveStatusLineOwnerPatch("zentui" as never, path), /Unsupported status line owner/);
 });
 
 test("maestro's informational statuses default to off", () => {

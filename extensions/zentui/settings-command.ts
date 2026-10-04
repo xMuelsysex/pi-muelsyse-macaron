@@ -29,6 +29,8 @@ import {
 	type PathDisplayMode,
 	type PolishedTuiConfig,
 	type SeparatorStyle,
+	type StatusLineOwner,
+	isStatusLineOwner,
 	type UiFeaturesConfig,
 	type TelemetryConfig,
 	type SettingsLanguage,
@@ -54,6 +56,8 @@ const pathDisplayModeValues: PathDisplayMode[] = ["basename", "full"];
 const pathDepthValues = ["0", "1", "2", "3", "4", "5"] as const;
 const branchLengthPresetValues = ["full", "10", "20", "30", "40", "50"] as const;
 const iconModeValues: IconMode[] = ["auto", "nerd", "ascii"];
+const statusLineOwnerValues: StatusLineOwner[] = ["pi-open-tui", "native"];
+const STATUS_LINE_OWNER_SETTING_ID = "statusLineOwner";
 type FeatureState = "enabled" | "disabled";
 
 const featureStateValues: FeatureState[] = ["enabled", "disabled"];
@@ -87,6 +91,7 @@ type SettingsCommandDeps = {
 		ctx: ExtensionContext,
 	) => { applied: boolean; reason?: string };
 	setFooterSegments: (patch: Partial<FooterSegmentsConfig>) => void;
+	setStatusLineOwner: (owner: StatusLineOwner, ctx: ExtensionContext) => void;
 	setFooterFormat: (value: string) => void;
 	setIconMode: (mode: IconMode) => void;
 	setContextStyle: (style: ContextStyle) => void;
@@ -459,6 +464,8 @@ function buildItems(
 	activeStatuses: ReadonlyMap<string, string>,
 	openTuiLoaded: boolean,
 ): SettingItem[] {
+	// Open TUI 在场且主人把底栏交给它时，遥测、缓存命中率与扩展状态项都显示为它接管。
+	const openTuiOwnsStatusLine = openTuiLoaded && config.statusLineOwner === "pi-open-tui";
 	if (section === "coloring") {
 		return (Object.keys(colorSettingLabels) as ColorSettingId[]).map((key) => ({
 			id: key,
@@ -486,6 +493,17 @@ function buildItems(
 			currentValue: config.language,
 			values: ["zh-CN", "en"],
 		});
+		if (openTuiLoaded) {
+			// 底栏归属只在与 Open TUI 共存时可以选，紧跟在状态栏开关后面。
+			items.splice(items.findIndex((item) => item.id === "statusLine") + 1, 0, {
+				id: STATUS_LINE_OWNER_SETTING_ID,
+				label: "Status line source",
+				description:
+					"pi-open-tui is loaded: choose whether the bottom bar is drawn by pi-open-tui or by this pack. Changes apply immediately.",
+				currentValue: config.statusLineOwner,
+				values: statusLineOwnerValues,
+			});
+		}
 		items.push({
 			id: FOOTER_PULSE_SETTING_ID,
 			label: "Footer pulse animation",
@@ -546,7 +564,7 @@ function buildItems(
 	}
 
 	if (section === "telemetry") {
-		if (openTuiLoaded) return [{
+		if (openTuiOwnsStatusLine) return [{
 			id: "telemetry:owned",
 			label: "Telemetry",
 			description: "Telemetry is managed by /open-tui; its original tracking, display, and settings are preserved.",
@@ -563,7 +581,7 @@ function buildItems(
 
 	if (section === "builtinSegments") {
 		return (Object.keys(footerSegmentSettingLabels) as FooterSegmentSettingId[]).map((key) => {
-			if (key === "cacheHit" && openTuiLoaded) {
+			if (key === "cacheHit" && openTuiOwnsStatusLine) {
 				return {
 					id: footerSegmentSettingId(key),
 					label: footerSegmentSettingLabels[key],
@@ -592,7 +610,7 @@ function buildItems(
 			{
 				id: "noThirdPartyStatuses",
 				label: "No active statuses",
-				description: openTuiLoaded
+				description: openTuiOwnsStatusLine
 					? "Live statuses are read through this pack's footer, and /open-tui currently owns the footer, so none can be listed."
 					: "This tab only lists statuses currently published through ctx.ui.setStatus().",
 				currentValue: "—",
@@ -769,6 +787,15 @@ export function registerZentuiSettingsCommand(pi: ExtensionAPI, deps: SettingsCo
 									settingsList.updateValue(id, displayValue(newValue));
 									deps.requestRender();
 									ctx.ui.notify(`${t(colorSettingLabels[id])}: ${t(newValue)}`, "info");
+									tui.requestRender();
+									return;
+								}
+
+								if (id === STATUS_LINE_OWNER_SETTING_ID && isStatusLineOwner(newValue)) {
+									deps.setStatusLineOwner(newValue, ctx);
+									settingsList.updateValue(id, displayValue(newValue));
+									deps.requestRender();
+									ctx.ui.notify(`${t("Status line source")}: ${displayValue(newValue)}`, "info");
 									tui.requestRender();
 									return;
 								}

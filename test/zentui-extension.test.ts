@@ -11,7 +11,7 @@ const configFile = join(agentDir, "muelsyse-macaron-zentui.json");
 
 type Handler = (event: unknown, ctx: unknown) => unknown;
 
-async function setup() {
+async function setup(commands: unknown[] = []) {
 	const { default: zentui } = await import("../extensions/zentui/index");
 	const handlers = new Map<string, Handler[]>();
 	const events = new EventEmitter();
@@ -23,7 +23,7 @@ async function setup() {
 			},
 			emit: (name: string, data: unknown) => { events.emit(name, data); },
 		},
-		getCommands: () => [],
+		getCommands: () => commands,
 		on(event: string, handler: Handler) {
 			handlers.set(event, [...(handlers.get(event) ?? []), handler]);
 		},
@@ -111,6 +111,25 @@ test("session lifecycle: config diagnostics, footer render, idempotent shutdown"
 	await emit("session_start", {}, third.ctx);
 	assert.deepEqual(third.notices, []);
 	await emit("session_shutdown", {}, third.ctx);
+});
+
+test("the footer follows the status line owner when pi-open-tui is loaded", async () => {
+	const openTui = [{ source: "extension", name: "open-tui" }];
+
+	writeFileSync(configFile, JSON.stringify({}));
+	const { emit } = await setup(openTui);
+	const handoverCtx = makeCtx();
+	await emit("session_start", {}, handoverCtx.ctx);
+	assert.equal(handoverCtx.footerFactory(), undefined, "pi-open-tui keeps the footer by default");
+	await emit("session_shutdown", {}, handoverCtx.ctx);
+
+	writeFileSync(configFile, JSON.stringify({ statusLineOwner: "native" }));
+	await setup(openTui);
+	const packCtx = makeCtx();
+	await emit("session_start", {}, packCtx.ctx);
+	assert.ok(packCtx.footerFactory(), "choosing this pack installs its footer with pi-open-tui loaded");
+	await emit("session_shutdown", {}, packCtx.ctx);
+	assert.equal(packCtx.footerFactory(), undefined, "the pack's footer is cleared on shutdown");
 });
 
 test("non-TUI modes install nothing", async () => {
