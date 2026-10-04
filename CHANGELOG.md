@@ -3,18 +3,31 @@
 All notable changes to pi-muelsyse-macaron. After updating, Pi shows the newest
 entry once above the editor; run `/muelsyse-changelog` to read this file inside Pi.
 
+## [1.3.1] - 2026-10-04
+
+The bottom-bar choice now covers the input box, and its options carry the project's own name.
+
+### Highlights
+
+- **The interface is one choice**: picking this project in “Bottom bar & input source” (`/zentui` → Features) takes the input box over as well — the Zentui frame replaces Open TUI's rounded editor instead of wrapping it, so its rails no longer show inside the frame. Switching back to `pi-open-tui` remounts its editor and footer.
+- **The options are package names**: the setting reads “Bottom bar & input source” and offers `pi-open-tui` / `pi-muelsyse-macaron` instead of a self-referential “本包”.
+
+### Changed
+
+- Wrapping Open TUI's editor left its own rails inside the Zentui frame; the pack installs its own editor now and remembers Open TUI's factory, which the switch back remounts. Its editor bookkeeping also records the factory the host actually holds: Open TUI wraps `setEditorComponent`, so the pack used to fail to recognise its own editor and refused the uninstall.
+
 ## [1.3.0] - 2026-10-04
 
 With pi-open-tui loaded, the bottom bar is yours to choose: Open TUI's footer or this pack's.
 
 ### Highlights
 
-- **Bottom bar, your call**: with `pi-open-tui` loaded, `/zentui` → Features → “Status line source” switches the footer between pi-open-tui and this pack. Both directions apply immediately, whatever order the extensions load in.
+- **Bottom bar, your call**: with `pi-open-tui` loaded, `/zentui` → Features → “Bottom bar & input source” switches between this project and pi-open-tui. Both directions apply immediately, whatever order the extensions load in.
 - **Ownership moves with the choice**: while this pack draws the bottom line its telemetry and cache-hit settings apply again; while pi-open-tui does, the matching `/zentui` entries read “Managed by /open-tui”.
 
 ### Added
 
-- **“Status line source” setting** (`statusLineOwner`, default `pi-open-tui`): listed only when `pi-open-tui` is loaded, and leaves every existing setup unchanged by default. Choosing this pack installs its footer and holds other extensions' footers back (Pi has a single footer slot); choosing pi-open-tui remounts the footer factory it registered, so switching back needs no restart.
+- **“Bottom bar & input source” setting** (`statusLineOwner`, default `pi-open-tui`): listed only when `pi-open-tui` is loaded, and leaves every existing setup unchanged by default. Choosing this pack installs its footer and holds other extensions' footers back (Pi has a single footer slot); choosing pi-open-tui remounts the footer factory it registered, so switching back needs no restart.
 
 ## [1.2.1] - 2026-10-04
 

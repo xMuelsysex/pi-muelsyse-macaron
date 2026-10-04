@@ -4,7 +4,7 @@
 
 > 英文版：[README.en.md](README.en.md)。
 
-**v1.3.0**：带 open-tui 时底栏可自选；`/zentui` →“功能”→“状态栏来源”在本包页脚与 pi-open-tui 页脚之间切换，两个方向都立即生效。详见 [1.3.0 更新说明](#130)。
+**v1.3.1**：带 open-tui 时，「底栏与输入框来源」在 `pi-open-tui` 与 `pi-muelsyse-macaron` 之间切换——底栏和输入框一起走，双向立即生效。详见 [1.3.1 更新说明](#131)。
 
 ## 包含内容
 
@@ -188,11 +188,24 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 
 避免与 `pi-zentui`、`pi-powerline-footer`、原版 `pi-claude-shimmer` 或本包的另一份副本叠加，它们共享页脚、工作提示和编辑器区域。
 
-检测到 Open TUI 后，本包保留其页眉和自定义编辑器，只为装饰色应用同款渐变；Open TUI 编辑器默认把工作提示行画进输入框上边框，本包会把它交还 Pi 的状态行，位置与不带 Open TUI 时一致（雨与 agents 栏之上）。底栏由谁绘制在 **`/zentui` →“功能”→“状态栏来源”** 里选：默认 **pi-open-tui**，缓存命中率与遥测沿用 Open TUI 原有逻辑，`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整；选 **本包** 则由本包页脚接管底栏，遥测与缓存命中率设置回到本包。切换立即生效，与扩展加载顺序无关。
+检测到 Open TUI 后，本包保留其页眉（装饰色套同款渐变）；Open TUI 编辑器默认把工作提示行画进输入框上边框，本包会把它交还 Pi 的状态行，位置与不带 Open TUI 时一致（雨与 agents 栏之上）。底栏与输入框由谁绘制，在 **`/zentui` →“功能”→“底栏与输入框来源”** 里选：默认 **pi-open-tui**，缓存命中率与遥测沿用 Open TUI 原有逻辑，`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整；选 **pi-muelsyse-macaron** 则由本包的页脚与边框编辑器一并接手（不再套在 Open TUI 圆角编辑器外面），遥测与缓存命中率设置回到本包。切换立即生效，与扩展加载顺序无关。
 
 ## 更新日志
 
 完整历史见 [CHANGELOG.md](CHANGELOG.md)，也可在 Pi 中运行 `/muelsyse-changelog`。
+
+### 1.3.1
+
+底栏的归属选择现在连同输入框一起生效，选项也改成项目自己的名字。
+
+#### 主要改进
+
+- **界面归属是一件事**：在「底栏与输入框来源」（`/zentui` →“功能”）里选了本项目，输入框也一并归本项目——Zentui 边框直接接手，不再套在 Open TUI 圆角编辑器外面（否则会双竖线）；切回 `pi-open-tui` 时它的编辑器与页脚原样回来。
+- **选项显示包名**：这一项现在叫「底栏与输入框来源」，取值为 `pi-open-tui` / `pi-muelsyse-macaron`，不再出现「本包」这种自称。
+
+#### 变更
+
+- 包一层 Open TUI 编辑器会把它的竖线留在 Zentui 边框里；现在整块换成 Zentui 编辑器，并记住 Open TUI 的工厂供切回时装回。编辑器台账也改成记录宿主真正持有的工厂：Open TUI 会包一层 `setEditorComponent`，本包原先认不出自己装的编辑器，切回时拒绝卸载。
 
 ### 1.3.0
 
@@ -200,12 +213,12 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 
 #### 主要改进
 
-- **底栏可选**：加载 `pi-open-tui` 时，`/zentui` →“功能”→“状态栏来源”在本包页脚与 pi-open-tui 页脚之间切换，两个方向都立即生效，且与加载顺序无关。
+- **底栏可选**：加载 `pi-open-tui` 时，`/zentui` →“功能”→“底栏与输入框来源”在本包与 pi-open-tui 之间切换，两个方向都立即生效，且与加载顺序无关。
 - **归属跟着选择走**：本包绘制底栏时，遥测与缓存命中率设置回到本包；由 pi-open-tui 绘制时，对应设置显示“已被 /open-tui 接管”。
 
 #### 新增
 
-- **“状态栏来源”设置**（`statusLineOwner`，默认 `pi-open-tui`）：仅在检测到 `pi-open-tui` 时列出，默认不改变现有行为。选择“本包”时装上本包页脚、挡住其它扩展的页脚装入；切回“pi-open-tui”时装回它注册过的页脚，无需重启。
+- **“底栏与输入框来源”设置**（`statusLineOwner`，默认 `pi-open-tui`）：仅在检测到 `pi-open-tui` 时列出，默认不改变现有行为。选 `pi-muelsyse-macaron` 时装上本包的页脚与编辑器、挡住其它扩展的页脚装入；切回 `pi-open-tui` 时装回它注册过的页脚与编辑器，无需重启。
 
 ### 1.2.1
 

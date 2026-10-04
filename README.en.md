@@ -4,7 +4,7 @@ Lightweight Muelsyse Macaron visual pack for [Pi](https://pi.dev).
 
 > Chinese version: [README.md](README.md).
 
-**v1.3.0** — with pi-open-tui loaded the bottom bar is yours to choose: `/zentui` → Features → “Status line source” switches between this pack's footer and pi-open-tui's, both ways, immediately. See [what changed](#130).
+**v1.3.1** — with pi-open-tui loaded, “Bottom bar & input source” switches the bottom bar *and* the input box between `pi-open-tui` and `pi-muelsyse-macaron`, both ways, immediately. See [what changed](#131).
 
 ## What’s inside
 
@@ -193,11 +193,24 @@ default label keeps tracking the pack version.
 
 Avoid stacking with `pi-zentui`, `pi-powerline-footer`, stock `pi-claude-shimmer`, or a second copy of this pack. They share the footer / working line / editor surfaces.
 
-When pi-open-tui is loaded, this pack keeps its header and custom editor, and only themes the decoration colors with the same gradient. The open-tui editor draws the working line into the editor's top border by default; the pack hands it back to Pi's status row, so it sits where it does without open-tui (above the rain and the agent bar). Who draws the bottom bar is yours to pick under **`/zentui` → Features → “Status line source”**: with **pi-open-tui** (the default) cache hit rate and telemetry stay owned by Open TUI — the matching `/zentui` entries read “Managed by /open-tui” and are configured in `/open-tui` — while **native** hands the bottom bar to this pack's footer and brings its telemetry and cache-hit settings back. The switch applies immediately and does not depend on the load order.
+When pi-open-tui is loaded, this pack keeps its header (with the same gradient on the decoration colors). The open-tui editor draws the working line into the editor's top border by default; the pack hands it back to Pi's status row, so it sits where it does without open-tui (above the rain and the agent bar). Who draws the bottom bar and the input box is yours to pick under **`/zentui` → Features → “Bottom bar & input source”**: with **pi-open-tui** (the default) cache hit rate and telemetry stay owned by Open TUI — the matching `/zentui` entries read “Managed by /open-tui” and are configured in `/open-tui` — while **pi-muelsyse-macaron** hands both surfaces to this pack, whose framed editor replaces (rather than wraps) the open-tui one, and brings its telemetry and cache-hit settings back. The switch applies immediately and does not depend on the load order.
 
 ## Changelog
 
 Full history: [CHANGELOG.md](CHANGELOG.md) (also available in Pi via `/muelsyse-changelog`).
+
+### 1.3.1
+
+The bottom-bar choice now covers the input box, and its options carry the project's own name.
+
+#### Highlights
+
+- **The interface is one choice**: picking this project in “Bottom bar & input source” (`/zentui` → Features) takes the input box over as well — the Zentui frame replaces Open TUI's rounded editor instead of wrapping it, so its rails no longer show inside the frame. Switching back to `pi-open-tui` brings its editor and footer back as they were.
+- **The options are package names**: the entry reads “Bottom bar & input source” and offers `pi-open-tui` / `pi-muelsyse-macaron` instead of a self-referential “本包”.
+
+#### Changed
+
+- Wrapping Open TUI's editor left its own rails inside the Zentui frame; the pack installs its own editor now and remembers Open TUI's factory, which the switch back remounts. Its editor bookkeeping also records the factory the host actually holds: Open TUI wraps `setEditorComponent`, so the pack used to fail to recognise its own editor and refused the uninstall.
 
 ### 1.3.0
 
@@ -205,12 +218,12 @@ With pi-open-tui loaded, the bottom bar is yours to choose.
 
 #### Highlights
 
-- **Bottom bar, your call**: with `pi-open-tui` loaded, `/zentui` → Features → “Status line source” switches the footer between pi-open-tui and this pack; both directions apply immediately and do not depend on the load order.
+- **Bottom bar, your call**: with `pi-open-tui` loaded, `/zentui` → Features → “Bottom bar & input source” switches between this project and pi-open-tui; both directions apply immediately and do not depend on the load order.
 - **Ownership moves with the choice**: while this pack draws the bottom line, its telemetry and cache-hit settings apply again; while pi-open-tui does, the matching entries read “Managed by /open-tui”.
 
 #### Added
 
-- **“Status line source” setting** (`statusLineOwner`, default `pi-open-tui`): listed only when `pi-open-tui` is loaded, and leaves every existing setup unchanged by default. Choosing this pack installs its footer and keeps other extensions from evicting it; choosing pi-open-tui remounts the footer factory it registered, so the switch needs no restart.
+- **“Bottom bar & input source” setting** (`statusLineOwner`, default `pi-open-tui`): listed only when `pi-open-tui` is loaded, and leaves every existing setup unchanged by default. Choosing `pi-muelsyse-macaron` installs this pack's footer and editor and holds other extensions' footers back; choosing pi-open-tui remounts the footer and editor it registered, so the switch needs no restart.
 
 ### 1.2.1
 
