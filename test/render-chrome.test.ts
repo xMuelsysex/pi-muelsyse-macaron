@@ -141,9 +141,29 @@ test("settled tool card is cached (same array while nothing changed)", () => {
 });
 
 test("self-rendered tools stay stock", () => {
-	const tool = makeTool({ renderShell: "self" });
+	const tool = makeTool({ renderShell: "self", name: "bash_bg" });
 	finish(tool, false);
 	assert.deepEqual(tool.render(60), stockToolRender.call(tool, 60));
+});
+
+test("the host's builtin edit card is framed despite its self shell", () => {
+	const tool = makeTool({ renderShell: "self", name: "edit" });
+	finish(tool, false);
+	const inner = stockToolRender.call(tool, 57);
+	const out = tool.render(60);
+	assert.equal(out.length, inner.length + 2, "frame rows added around the diff body");
+	assert.equal(strip(out[0]!), "", "Pi's spacer row stays above the frame");
+	assert.match(strip(out[1]!), /^╭─ ✓ EDIT /);
+	assert.match(strip(out.at(-1)!), /^╰─+╯$/);
+	for (const [i, line] of inner.slice(1).entries()) {
+		assert.ok(line.includes(inner[i + 1]!), `diff row ${i} unchanged`);
+		assert.equal(strip(out[i + 2]!), `┃ ${strip(line)}│`);
+	}
+	for (let width = 14; width <= 90; width += 7) {
+		const framed = makeTool({ renderShell: "self", name: "edit" });
+		finish(framed, false);
+		for (const line of framed.render(width)) assert.ok(visibleWidth(line) <= width, `edit @${width}`);
+	}
 });
 
 test("tool and user cards never exceed the requested width (CJK/emoji)", () => {

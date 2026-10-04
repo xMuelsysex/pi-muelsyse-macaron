@@ -9,7 +9,10 @@ import { installPrototypePatch } from "./prototype-patch-registry";
  *
  * Body lines are Pi's render output at `width - 3` columns, passed through byte-for-byte: the
  * pack never rewrites, strips or truncates tool output. Tools that draw their own shell
- * (`renderShell: "self"`, e.g. edit), image results, and hidden cards stay fully stock.
+ * (`renderShell: "self"` — pi-maestro-flow's tools, Cockpit's quiet-mode natives), image results
+ * and hidden cards stay fully stock; the host's builtin `edit` card is the exception, because
+ * its shell is a background block plus diff rows without a border of its own, so the frame
+ * composes with it instead of doubling up.
  */
 
 type Cleanup = () => void;
@@ -53,6 +56,9 @@ const LEFT_COLUMNS = 2; // visible width of LEFT_RAIL
 const RAIL_COLUMNS = 3; // visible width of LEFT_RAIL + RIGHT_RAIL
 const MIN_WIDTH = 12;
 
+/** Self-shelled tools the pack frames anyway: their shell carries no border of its own. */
+const SELF_SHELL_FRAMEABLE = new Set(["edit"]);
+
 function toolStatus(runtime: ToolExecutionRuntime): ToolStatus | undefined {
 	if (typeof runtime.isPartial !== "boolean") return undefined; // unknown shape: stay stock
 	if (runtime.isPartial) return "running";
@@ -71,12 +77,13 @@ function hasImageResult(runtime: ToolExecutionRuntime): boolean {
 	return content.some((item) => (item as { type?: unknown } | null)?.type === "image");
 }
 
-/** Stock rendering for shells we do not frame (self-rendered tools, images, hidden cards). */
+/** Stock rendering for shells we do not frame (foreign self-rendered tools, images, hidden cards). */
 function isFrameable(runtime: ToolExecutionRuntime): boolean {
 	if (runtime.hideComponent === true) return false;
 	if (typeof runtime.getRenderShell === "function") {
 		try {
-			if ((runtime.getRenderShell as () => unknown).call(runtime) === "self") return false;
+			const shell = (runtime.getRenderShell as () => unknown).call(runtime);
+			if (shell === "self" && !SELF_SHELL_FRAMEABLE.has(String(runtime.toolName))) return false;
 		} catch {
 			return false;
 		}
