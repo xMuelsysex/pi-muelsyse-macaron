@@ -19,7 +19,8 @@
     "coral": "#FF8FA3",
     "border": "#6E5878",
     "borderMuted": "#54465F",
-    "plum": "#4A2E40"
+    "plum": "#4A2E40",
+    "onPlum": "#FFE3F1"
   },
   "colors": {
     "accent": "muelsyse",
@@ -77,7 +78,7 @@
     "scrollbarTrack": "borderMuted",
     "scrollbarThumb": "muted",
     "searchMatchBg": "plum",
-    "searchMatchText": "butter"
+    "searchMatchText": "onPlum"
   },
   "export": {
     "pageBg": "bg",

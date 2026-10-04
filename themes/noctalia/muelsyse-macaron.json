@@ -10,16 +10,17 @@
     "muted": "{{colors.on_surface_variant.default.hex}}",
     "dim": "{{colors.outline.default.hex}}",
     "muelsyse": "{{colors.primary.default.hex}}",
-    "petal": "{{colors.primary_fixed_dim.default.hex}}",
+    "petal": "{{colors.primary.default.hex}}",
     "peach": "{{colors.tertiary.default.hex}}",
     "lavender": "{{colors.secondary.default.hex}}",
-    "sky": "{{colors.secondary_fixed_dim.default.hex}}",
-    "mint": "{{colors.tertiary_fixed_dim.default.hex}}",
+    "sky": "{{colors.secondary.default.hex}}",
+    "mint": "{{colors.tertiary.default.hex}}",
     "butter": "{{colors.secondary.default.hex}}",
     "coral": "{{colors.error.default.hex}}",
     "border": "{{colors.outline.default.hex}}",
     "borderMuted": "{{colors.outline_variant.default.hex}}",
-    "plum": "{{colors.primary_container.default.hex}}"
+    "plum": "{{colors.primary_container.default.hex}}",
+    "onPlum": "{{colors.on_primary_container.default.hex}}"
   },
   "colors": {
     "accent": "muelsyse",
@@ -77,7 +78,7 @@
     "scrollbarTrack": "borderMuted",
     "scrollbarThumb": "muted",
     "searchMatchBg": "plum",
-    "searchMatchText": "butter"
+    "searchMatchText": "onPlum"
   },
   "export": {
     "pageBg": "bg",

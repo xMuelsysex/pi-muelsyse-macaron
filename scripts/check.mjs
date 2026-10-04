@@ -73,7 +73,7 @@ for (const color of requiredColors) assert.ok(color in theme.colors, `missing th
 
 const noctaliaTemplate = JSON.parse(await read("themes/noctalia/muelsyse-macaron.json"));
 assert.equal(noctaliaTemplate.name, theme.name);
-assert.deepEqual(noctaliaTemplate.colors, theme.colors, "Noctalia must preserve Muelsyse roles and transparent backgrounds");
+assert.deepEqual(noctaliaTemplate.colors, theme.colors, "Noctalia must mirror the Muelsyse role table");
 assert.deepEqual(noctaliaTemplate.export, theme.export);
 assert.deepEqual(Object.keys(noctaliaTemplate.vars), Object.keys(theme.vars));
 for (const value of Object.values(noctaliaTemplate.vars)) {
