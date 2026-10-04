@@ -11,9 +11,10 @@ export type PrototypePatchAdapter =
 	| "tool-execution-render"
 	| "tool-execution-mouse"
 	| "cockpit-bar-render"
+	| "cockpit-bar-slot"
 	| "matrix-widget-order";
 
-export type PrototypeMethodName = "render" | "handleMouse";
+export type PrototypeMethodName = "render" | "handleMouse" | "setExtensionWidget";
 type PrototypeMethod = (this: unknown, ...args: unknown[]) => unknown;
 
 export type PatchInvocation = {

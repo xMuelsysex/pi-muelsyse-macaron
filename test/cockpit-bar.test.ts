@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import type { Component } from "@earendil-works/pi-tui";
-import { installCockpitBarGradient } from "../extensions/zentui/cockpit-bar";
+import { installCockpitBarGradient, releaseCockpitBarDecorations } from "../extensions/zentui/cockpit-bar";
 import { setGradientTheme } from "../extensions/zentui/gradient";
 import { setColorMode } from "../extensions/shared/color";
 
@@ -35,25 +35,26 @@ function cockpitLine(padding = 32): string {
 
 function harness() {
 	const mounted = new Map<string, unknown>();
-	const originalSetWidget = (key: string, content?: unknown): void => {
+	const originalSlot = (key: string, content?: unknown): void => {
 		if (typeof content === "function") mounted.set(key, content);
 		else mounted.delete(key);
 	};
-	const ctx = { ui: { setWidget: originalSetWidget } };
-	const cleanup = installCockpitBarGradient(ctx as never);
+	const slot = { setExtensionWidget: originalSlot };
+	const cleanup = installCockpitBarGradient(slot);
 	const mount = (key: string, line: string) => {
 		// The host calls the factory it received, so tests call that one back.
-		ctx.ui.setWidget(key, (() => ({
+		slot.setExtensionWidget(key, (() => ({
 			render: () => [line],
 			invalidate: () => {},
 			dispose: () => {},
 		})) as unknown as () => Component);
 		return mounted.get(key) as unknown as () => Component;
 	};
-	return { ctx, cleanup, mount, originalSetWidget };
+	return { slot, cleanup, mount, originalSlot };
 }
 
 afterEach(() => {
+	releaseCockpitBarDecorations();
 	setColorMode("truecolor");
 	setGradientTheme(undefined);
 });
@@ -113,17 +114,23 @@ test("a bar re-mounted later is decorated too", () => {
 	h.mount("cockpit-session-bar", cockpitLine());
 	const rendered = h.mount("cockpit-session-bar", cockpitLine())().render(90) as string[];
 	assert.ok(gradientCodes(rendered[0]!).length > 0, "each mount is decorated");
-	h.ctx.ui.setWidget("cockpit-session-bar", undefined);
+	h.slot.setExtensionWidget("cockpit-session-bar", undefined);
 	h.cleanup();
 });
 
-test("cleanup restores the host slot and the component's own render", () => {
+test("session teardown drops the decorations and keeps the slot patch", () => {
 	const h = harness();
+	assert.notEqual(h.slot.setExtensionWidget, h.originalSlot, "the host mount point is patched");
 	const component = h.mount("cockpit-session-bar", cockpitLine())();
 	assert.ok(gradientCodes((component.render(90) as string[])[0]!).length > 0);
+
+	releaseCockpitBarDecorations();
+	assert.equal((component.render(90) as string[])[0], cockpitLine(), "session teardown restores the component render");
+	const remounted = h.mount("cockpit-session-bar", cockpitLine())().render(90) as string[];
+	assert.ok(gradientCodes(remounted[0]!).length > 0, "the next mount is still decorated");
+
 	h.cleanup();
-	assert.equal(h.ctx.ui.setWidget, h.originalSetWidget, "widget slot restored");
-	assert.equal((component.render(90) as string[])[0], cockpitLine(), "component render restored");
+	assert.equal(h.slot.setExtensionWidget, h.originalSlot, "cleanup restores the host mount point");
 });
 
 test("color-less terminals receive the plain line", () => {

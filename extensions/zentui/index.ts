@@ -45,7 +45,7 @@ import { emptyGitStatus, readGitStatus } from "./git";
 import { LiveContextController } from "./live-context";
 import { readPackageVersionResult } from "./package-version";
 import { installOpenTuiGradient } from "./open-tui";
-import { installCockpitBarGradient } from "./cockpit-bar";
+import { installCockpitBarGradient, releaseCockpitBarDecorations } from "./cockpit-bar";
 import {
 	createProjectRefreshScheduler,
 	type ProjectProbePlan,
@@ -111,6 +111,9 @@ function isProjectTrusted(ctx: ExtensionContext): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+	// Cockpit can mount its agent bar in a `session_start` that runs before ours, so the widget-slot
+	// patch goes in here, while the pack loads — before any `session_start` handler runs.
+	installCockpitBarGradient();
 	const state: FooterState = createInitialState(emptyGitStatus());
 	const sessionLifecycle = new SessionLifecycle();
 	let telemetryTracker = new TurnTelemetryTracker();
@@ -124,7 +127,6 @@ export default function (pi: ExtensionAPI) {
 	let openTuiLoaded = false;
 	let cockpitLoaded = false;
 	let cockpitOwnershipDisposer: (() => void) | undefined;
-	let cleanupCockpitBarGradient: (() => void) | undefined;
 	let cleanupOpenTuiGradient: (() => void) | undefined;
 	/** Bumped on every config change; keys the probe plan below. */
 	let configVersion = 0;
@@ -510,8 +512,6 @@ export default function (pi: ExtensionAPI) {
 		cleanupOpenTuiGradient = openTuiLoaded
 			? installOpenTuiGradient(ctx, (render) => { requestFooterRender = render; })
 			: undefined;
-		cleanupCockpitBarGradient?.();
-		cleanupCockpitBarGradient = cockpitLoaded ? installCockpitBarGradient(ctx) : undefined;
 		syncState(state, ctx);
 		stopProjectRefresh();
 		applyConfiguredUi(ctx);
@@ -540,8 +540,7 @@ export default function (pi: ExtensionAPI) {
 			stopProjectRefresh();
 			cleanupOpenTuiGradient?.();
 			cleanupOpenTuiGradient = undefined;
-			cleanupCockpitBarGradient?.();
-			cleanupCockpitBarGradient = undefined;
+			releaseCockpitBarDecorations();
 			uninstallPrototypePatches(isTuiContext(ctx) ? ctx : undefined);
 			cockpitOwnershipDisposer?.();
 			cockpitOwnershipDisposer = undefined;
