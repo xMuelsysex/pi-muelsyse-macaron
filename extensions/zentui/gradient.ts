@@ -25,6 +25,10 @@ let activePalette: ActiveGradientPalette | undefined;
 
 const RESET = "\x1b[0m";
 const GRADIENT_CACHE_LIMIT = 256;
+/** Shimmer band width in text positions; the band is off-text at both cycle ends. */
+const SHIMMER_BAND = 0.5;
+/** Highlight color blended into the swept characters. */
+const SHIMMER_HIGHLIGHT: RGB = [255, 252, 250];
 /** LRU of static (phase 0) gradients; animated frames are never cached. */
 const gradientCache = new Map<string, string>();
 let gradientCacheMode = getColorMode();
@@ -79,10 +83,15 @@ export function mix(from: RGB, to: RGB, amount: number): RGB {
 	];
 }
 
-/** Continuous 0..1 phase from wall clock. */
-export function pulsePhase(now = Date.now(), periodMs = FOOTER_PULSE_PERIOD_MS): number {
-	const p = periodMs > 0 ? periodMs : FOOTER_PULSE_PERIOD_MS;
-	return (((now % p) + p) % p) / p;
+/**
+ * Shimmer clock in gradient ramps: one full ramp per pulse period.
+ *
+ * Unbounded on purpose. A wrapped 0..1 phase snaps the shift back at every period
+ * boundary, so partial-ramp rates (0.25 for the cwd label, 0.5 for the separator)
+ * only stay continuous when they are scaled from a monotonic clock.
+ */
+export function shimmerClock(now = Date.now()): number {
+	return now / FOOTER_PULSE_PERIOD_MS;
 }
 
 function sampleStops(stops: readonly RGB[], position: number, phase = 0): RGB {
@@ -197,6 +206,35 @@ export function renderMuelsyseGradient(
 }
 
 /**
+ * Shimmer sweep over the static gradient: a soft highlight travels across the text.
+ *
+ * The band sits outside the text at both ends of every cycle, so the pattern is
+ * continuous for any clock value — unlike shifting a non-cyclic ramp, which snaps
+ * back as soon as the shift wraps.
+ */
+export function renderMuelsyseShimmer(
+	text: string,
+	clock = 0,
+	options: { contentOnly?: boolean } = {},
+): string {
+	if (!text) return text;
+	const palette = currentThemePalette();
+	const stops = palette?.stops ?? MUELSYSE_MACARON_STOPS;
+	const cycle = ((clock % 1) + 1) % 1;
+	const center = cycle * (1 + SHIMMER_BAND) - SHIMMER_BAND / 2;
+	return paintPositions(
+		text,
+		(position) => {
+			const base = sampleMuelsyseGradient(stops, position);
+			const offset = (position - center) / SHIMMER_BAND;
+			if (offset <= -0.5 || offset >= 0.5) return base;
+			return mix(base, SHIMMER_HIGHLIGHT, (0.5 + 0.5 * Math.cos(offset * Math.PI * 2)) * 0.55);
+		},
+		options.contentOnly === true,
+	);
+}
+
+/**
  * The pack's curated macaron sweep, independent of the active theme.
  *
  * Cockpit's bar sits next to its own theme-colored chips, and a theme that maps several
@@ -244,17 +282,17 @@ const GAUGE_TRACK: RGB = [180, 168, 184]; // soft lilac track, readable on light
 
 /**
  * Macaron gauge body (no frame). Fill walks the muelsyse palette for the normal
- * tier and uses a solid warning/error color otherwise; soft hotspot with phase.
+ * tier and uses a solid warning/error color otherwise; soft hotspot with shimmer.
  */
 export function renderMacaronGauge(
 	percent: number,
 	width = 10,
-	options: { phase?: number; tier?: GaugeTier } = {},
+	options: { shimmer?: number; tier?: GaugeTier } = {},
 ): string {
 	const cells = Math.max(1, Math.floor(width));
 	const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
 	const filled = Math.round((clamped / 100) * cells);
-	const phase = options.phase ?? 0;
+	const shimmer = options.shimmer ?? 0;
 	const tier = options.tier ?? "normal";
 	const palette = currentThemePalette();
 	const stops = palette?.stops ?? MUELSYSE_MACARON_STOPS;
@@ -272,8 +310,8 @@ export function renderMacaronGauge(
 				? warningFill
 				: tier === "error"
 					? errorFill
-					: sampleMuelsyseGradient(stops, cells <= 1 ? 0 : i / Math.max(1, filled - 1), phase * 0.2);
-		const wave = 0.5 + 0.5 * Math.sin((i / cells + phase) * Math.PI * 2);
+					: sampleMuelsyseGradient(stops, cells <= 1 ? 0 : i / Math.max(1, filled - 1), shimmer * 0.2);
+		const wave = 0.5 + 0.5 * Math.sin((i / cells + shimmer) * Math.PI * 2);
 		body += paintFg(mix(base, [255, 252, 250], wave * 0.15), "█");
 	}
 	return body;

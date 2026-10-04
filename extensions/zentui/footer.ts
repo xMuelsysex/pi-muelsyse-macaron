@@ -29,7 +29,7 @@ import {
 	getCachedContextUsage,
 	getUsageTotals,
 } from "./format";
-import { pulsePhase, renderMuelsyseGradient } from "./gradient";
+import { renderMuelsyseShimmer, shimmerClock } from "./gradient";
 import { resolveRuntimeSymbol } from "./icons";
 import type { LiveContextOverride } from "./live-context";
 import { cacheFullscreenSelection } from "./selection-cache";
@@ -269,12 +269,13 @@ export function installFooter(
 			const config = getConfig();
 			const colorSource = config.colorSources.starship;
 			const iconMode = config.icons.mode;
-			const phase = pulseTimer ? pulsePhase() : 0;
+			// Ramp-scale clock: partial-ramp shimmer rates stay continuous (see shimmerClock).
+			const shimmer = pulseTimer ? shimmerClock() : 0;
 			const separatorRaw = separatorText[config.separator];
 			const separator =
 				config.separator === "none"
 					? separatorRaw
-					: renderMuelsyseGradient(separatorRaw, phase * 0.5);
+					: renderMuelsyseShimmer(separatorRaw, shimmer * 0.5);
 			const innerWidth = Math.max(1, width - 2);
 			const cwdPlain = formatCwdLabel(ctx.cwd, config.icons.cwd, {
 				mode: config.pathDisplay.mode,
@@ -283,7 +284,7 @@ export function installFooter(
 			const cwdLabel =
 				iconMode === "ascii"
 					? renderStyleForSource(theme, colorSource, config.colors.cwd, cwdPlain)
-					: renderMuelsyseGradient(cwdPlain, phase * 0.25);
+					: renderMuelsyseShimmer(cwdPlain, shimmer * 0.25);
 			// Pi's footer data provider watches .git/HEAD itself; prefer it over our last scan.
 			const liveBranch = footerData.getGitBranch();
 			const detachedHead =
@@ -314,7 +315,7 @@ export function installFooter(
 					contextWindow,
 					style: config.contextStyle,
 					asciiGauge: iconMode === "ascii",
-					phase,
+					shimmer,
 					tier,
 				});
 				const color =
@@ -441,9 +442,9 @@ export function installFooter(
 									config.colors.os,
 									formatOsLabel(config.icons.os, iconMode),
 								)
-							: renderMuelsyseGradient(
+							: renderMuelsyseShimmer(
 									formatOsLabel(config.icons.os, iconMode),
-									(phase + 0.4) % 1,
+									shimmer * 0.25 + 0.4,
 								);
 					case "time":
 						return renderStyleForSource(
@@ -624,7 +625,7 @@ export function installFooter(
 			const osSegment = config.footerSegments.os
 				? iconMode === "ascii"
 					? renderStyleForSource(theme, colorSource, config.colors.os, osPlain)
-					: renderMuelsyseGradient(osPlain, (phase + 0.4) % 1)
+					: renderMuelsyseShimmer(osPlain, shimmer * 0.25 + 0.4)
 				: "";
 			const left = [
 				osSegment,
