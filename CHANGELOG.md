@@ -3,6 +3,19 @@
 All notable changes to pi-muelsyse-macaron. After updating, Pi shows the newest
 entry once above the editor; run `/muelsyse-changelog` to read this file inside Pi.
 
+## [1.3.0] - 2026-10-04
+
+With pi-open-tui loaded, the bottom bar is yours to choose: Open TUI's footer or this pack's.
+
+### Highlights
+
+- **Bottom bar, your call**: with `pi-open-tui` loaded, `/zentui` → Features → “Status line source” switches the footer between pi-open-tui and this pack. Both directions apply immediately, whatever order the extensions load in.
+- **Ownership moves with the choice**: while this pack draws the bottom line its telemetry and cache-hit settings apply again; while pi-open-tui does, the matching `/zentui` entries read “Managed by /open-tui”.
+
+### Added
+
+- **“Status line source” setting** (`statusLineOwner`, default `pi-open-tui`): listed only when `pi-open-tui` is loaded, and leaves every existing setup unchanged by default. Choosing this pack installs its footer and holds other extensions' footers back (Pi has a single footer slot); choosing pi-open-tui remounts the footer factory it registered, so switching back needs no restart.
+
 ## [1.2.1] - 2026-10-04
 
 The header label is yours to set, and the open-tui chrome sits where it does without open-tui.

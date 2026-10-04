@@ -4,7 +4,7 @@
 
 > 英文版：[README.en.md](README.en.md)。
 
-**v1.2.1**：页眉标题可用 `/muelsyse-header "<text>"` 自定义；带 open-tui 时工作提示行回到 Pi 的状态行，字符雨始终位于 agents 栏之上（与加载顺序无关）。详见 [1.2.1 更新说明](#121)。
+**v1.3.0**：带 open-tui 时底栏可自选；`/zentui` →“功能”→“状态栏来源”在本包页脚与 pi-open-tui 页脚之间切换，两个方向都立即生效。详见 [1.3.0 更新说明](#130)。
 
 ## 包含内容
 
@@ -188,11 +188,24 @@ Zentui 配置位于 `~/.pi/agent/muelsyse-macaron-zentui.json`，可用 `/zentui
 
 避免与 `pi-zentui`、`pi-powerline-footer`、原版 `pi-claude-shimmer` 或本包的另一份副本叠加，它们共享页脚、工作提示和编辑器区域。
 
-检测到 Open TUI 后，本包保留其页眉、页脚和自定义编辑器，只为装饰色应用同款渐变；Open TUI 编辑器默认把工作提示行画进输入框上边框，本包会把它交还 Pi 的状态行，位置与不带 Open TUI 时一致（雨与 agents 栏之上）。缓存命中率与遥测沿用 Open TUI 原有逻辑；`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整。
+检测到 Open TUI 后，本包保留其页眉和自定义编辑器，只为装饰色应用同款渐变；Open TUI 编辑器默认把工作提示行画进输入框上边框，本包会把它交还 Pi 的状态行，位置与不带 Open TUI 时一致（雨与 agents 栏之上）。底栏由谁绘制在 **`/zentui` →“功能”→“状态栏来源”** 里选：默认 **pi-open-tui**，缓存命中率与遥测沿用 Open TUI 原有逻辑，`/zentui` 对应设置显示“已被 /open-tui 接管”，请在 `/open-tui` 中调整；选 **本包** 则由本包页脚接管底栏，遥测与缓存命中率设置回到本包。切换立即生效，与扩展加载顺序无关。
 
 ## 更新日志
 
 完整历史见 [CHANGELOG.md](CHANGELOG.md)，也可在 Pi 中运行 `/muelsyse-changelog`。
+
+### 1.3.0
+
+带 open-tui 时，底栏由谁绘制由主人决定。
+
+#### 主要改进
+
+- **底栏可选**：加载 `pi-open-tui` 时，`/zentui` →“功能”→“状态栏来源”在本包页脚与 pi-open-tui 页脚之间切换，两个方向都立即生效，且与加载顺序无关。
+- **归属跟着选择走**：本包绘制底栏时，遥测与缓存命中率设置回到本包；由 pi-open-tui 绘制时，对应设置显示“已被 /open-tui 接管”。
+
+#### 新增
+
+- **“状态栏来源”设置**（`statusLineOwner`，默认 `pi-open-tui`）：仅在检测到 `pi-open-tui` 时列出，默认不改变现有行为。选择“本包”时装上本包页脚、挡住其它扩展的页脚装入；切回“pi-open-tui”时装回它注册过的页脚，无需重启。
 
 ### 1.2.1
 
