@@ -72,7 +72,7 @@ function gradientCacheKey(text: string, paletteKey: string): string {
 }
 
 /** Soft period for footer shimmer / pulse (ms). */
-const FOOTER_PULSE_PERIOD_MS = 1800;
+const FOOTER_PULSE_PERIOD_MS = 1500;
 
 export function mix(from: RGB, to: RGB, amount: number): RGB {
 	const t = Math.max(0, Math.min(1, amount));
@@ -220,18 +220,23 @@ export function renderMuelsyseShimmer(
 	if (!text) return text;
 	const palette = currentThemePalette();
 	const stops = palette?.stops ?? MUELSYSE_MACARON_STOPS;
-	const cycle = ((clock % 1) + 1) % 1;
-	const center = cycle * (1 + SHIMMER_BAND) - SHIMMER_BAND / 2;
+	const center = shimmerCenter(clock);
 	return paintPositions(
 		text,
-		(position) => {
-			const base = sampleMuelsyseGradient(stops, position);
-			const offset = (position - center) / SHIMMER_BAND;
-			if (offset <= -0.5 || offset >= 0.5) return base;
-			return mix(base, SHIMMER_HIGHLIGHT, (0.5 + 0.5 * Math.cos(offset * Math.PI * 2)) * 0.55);
-		},
+		(position) => sampleShimmer(sampleMuelsyseGradient(stops, position), position, center, 0.55),
 		options.contentOnly === true,
 	);
+}
+
+function shimmerCenter(clock: number): number {
+	const cycle = ((clock % 1) + 1) % 1;
+	return cycle * (1 + SHIMMER_BAND) - SHIMMER_BAND / 2;
+}
+
+function sampleShimmer(base: RGB, position: number, center: number, intensity: number): RGB {
+	const offset = (position - center) / SHIMMER_BAND;
+	if (offset <= -0.5 || offset >= 0.5) return base;
+	return mix(base, SHIMMER_HIGHLIGHT, (0.5 + 0.5 * Math.cos(offset * Math.PI * 2)) * intensity);
 }
 
 /**
@@ -279,10 +284,12 @@ export type GaugeTier = "normal" | "warning" | "error";
 const WARNING_FILL: RGB = [243, 217, 139]; // solid butter — no pink end that looks "healthy"
 const ERROR_FILL: RGB = [255, 143, 163]; // solid coral
 const GAUGE_TRACK: RGB = [180, 168, 184]; // soft lilac track, readable on light + dark
+const GAUGE_BLOCKS = " ▏▎▍▌▋▊▉█";
+const GAUGE_STEPS_PER_CELL = GAUGE_BLOCKS.length - 1;
 
 /**
- * Macaron gauge body (no frame). Fill walks the muelsyse palette for the normal
- * tier and uses a solid warning/error color otherwise; soft hotspot with shimmer.
+ * Gauge body (no frame): eighth-cell fill over a quiet track. Colors stay anchored
+ * to the track as usage changes; the highlight sweeps without wrapping the palette.
  */
 export function renderMacaronGauge(
 	percent: number,
@@ -291,8 +298,8 @@ export function renderMacaronGauge(
 ): string {
 	const cells = Math.max(1, Math.floor(width));
 	const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
-	const filled = Math.round((clamped / 100) * cells);
-	const shimmer = options.shimmer ?? 0;
+	const filledSteps = Math.round((clamped / 100) * cells * GAUGE_STEPS_PER_CELL);
+	const center = shimmerCenter(options.shimmer ?? 0);
 	const tier = options.tier ?? "normal";
 	const palette = currentThemePalette();
 	const stops = palette?.stops ?? MUELSYSE_MACARON_STOPS;
@@ -301,18 +308,19 @@ export function renderMacaronGauge(
 	const track = palette?.gauge.muted ?? GAUGE_TRACK;
 	let body = "";
 	for (let i = 0; i < cells; i++) {
-		if (i >= filled) {
-			body += paintFg(track, "░");
+		const steps = Math.max(0, Math.min(GAUGE_STEPS_PER_CELL, filledSteps - i * GAUGE_STEPS_PER_CELL));
+		if (steps === 0) {
+			body += paintFg(track, "─");
 			continue;
 		}
+		const position = cells <= 1 ? 0 : i / (cells - 1);
 		const base =
 			tier === "warning"
 				? warningFill
 				: tier === "error"
 					? errorFill
-					: sampleMuelsyseGradient(stops, cells <= 1 ? 0 : i / Math.max(1, filled - 1), shimmer * 0.2);
-		const wave = 0.5 + 0.5 * Math.sin((i / cells + shimmer) * Math.PI * 2);
-		body += paintFg(mix(base, [255, 252, 250], wave * 0.15), "█");
+					: sampleMuelsyseGradient(stops, position);
+		body += paintFg(sampleShimmer(base, position, center, 0.15), GAUGE_BLOCKS[steps]!);
 	}
 	return body;
 }
