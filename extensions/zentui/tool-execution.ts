@@ -1,5 +1,5 @@
 import { type Theme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { type Component, visibleWidth } from "@earendil-works/pi-tui";
 import { getColorMode, paintFg, type RGB } from "../shared/color";
 import { renderMuelsyseFrameGradient } from "./gradient";
 import { installPrototypePatch } from "./prototype-patch-registry";
@@ -9,19 +9,21 @@ import { installPrototypePatch } from "./prototype-patch-registry";
  *
  * Body lines are Pi's render output at `width - 3` columns, passed through byte-for-byte: the
  * pack never rewrites, strips or truncates tool output. Tools that draw their own shell
- * (`renderShell: "self"` — pi-maestro-flow's tools, Cockpit's quiet-mode natives), image results
- * and hidden cards stay fully stock; the host's builtin `edit` card is the exception, because
- * its shell is a background block plus diff rows without a border of its own, so the frame
- * composes with it instead of doubling up.
+ * (`renderShell: "self"` — pi-maestro-flow's tools, Cockpit's quiet-mode natives) and hidden
+ * cards stay fully stock; the host's builtin `edit` card is the exception, because its shell
+ * carries no border of its own. Text remains framed when a result includes images; native
+ * image rows follow the frame unchanged so their protocol and reserved cells stay intact.
  */
 
 type Cleanup = () => void;
 type ToolStatus = "running" | "ok" | "error";
 
-/** Private ToolExecutionComponent fields read defensively (present in Pi 0.87.1 and 0.99.1). */
+/** Private ToolExecutionComponent layout fields used by the render and mouse adapters. */
 type ToolExecutionRuntime = {
 	isPartial?: unknown;
-	result?: { isError?: unknown; content?: unknown };
+	result?: { isError?: unknown };
+	imageComponents?: readonly Component[];
+	imageSpacers?: readonly Component[];
 	toolName?: unknown;
 	expanded?: unknown;
 	hideComponent?: unknown;
@@ -39,6 +41,8 @@ type CardRender = {
 	colorMode: string;
 	/** Number of leading inner lines kept outside the frame (Pi's spacer row). */
 	prefix: number;
+	/** Native image/spacer rows following the framed text. */
+	imageRows: number;
 	inner: readonly string[];
 	lines: string[];
 };
@@ -71,13 +75,15 @@ function toolLabelName(runtime: ToolExecutionRuntime): string {
 	return raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").replaceAll("_", " ").toUpperCase();
 }
 
-function hasImageResult(runtime: ToolExecutionRuntime): boolean {
-	const content = runtime.result?.content;
-	if (!Array.isArray(content)) return false;
-	return content.some((item) => (item as { type?: unknown } | null)?.type === "image");
+function imageTailHeight(runtime: ToolExecutionRuntime, width: number): number {
+	// Pi appends these components after its text shell; render() reuses their cached rows.
+	return runtime.imageComponents?.reduce(
+		(rows, image, index) => rows + image.render(width).length + (runtime.imageSpacers?.[index]?.render(width).length ?? 0),
+		0,
+	) ?? 0;
 }
 
-/** Stock rendering for shells we do not frame (foreign self-rendered tools, images, hidden cards). */
+/** Stock rendering for shells we do not frame (foreign self-rendered tools, hidden cards). */
 function isFrameable(runtime: ToolExecutionRuntime): boolean {
 	if (runtime.hideComponent === true) return false;
 	if (typeof runtime.getRenderShell === "function") {
@@ -88,7 +94,7 @@ function isFrameable(runtime: ToolExecutionRuntime): boolean {
 			return false;
 		}
 	}
-	return !hasImageResult(runtime);
+	return true;
 }
 
 function statusText(status: ToolStatus, name: string): string {
@@ -129,24 +135,30 @@ function buildCard(
 	width: number,
 	status: ToolStatus,
 	name: string,
+	imageRows: number,
 ): { lines: string[]; prefix: number } {
 	const prefix = inner[0] === "" ? 1 : 0; // Pi's Spacer(1) row stays above the frame
 	const left = paintFg(STATUS_RGB[status], LEFT_RAIL);
 	const right = paintFg(FRAME_RGB, RIGHT_RAIL);
 	const lines: string[] = inner.slice(0, prefix);
 	lines.push(renderMuelsyseFrameGradient(frameTop(statusText(status, name), width)));
-	for (let i = prefix; i < inner.length; i++) lines.push(`${left}${inner[i]}${right}`);
+	const textEnd = inner.length - imageRows;
+	for (let i = prefix; i < textEnd; i++) lines.push(`${left}${inner[i]}${right}`);
 	lines.push(renderMuelsyseFrameGradient(frameBottom(width)));
+	lines.push(...inner.slice(textEnd));
 	return { lines, prefix };
 }
 
 /**
  * Map a mouse event on the framed card back to Pi's own layout (inner width, rows without the
- * frame). Returns undefined for frame/rail cells.
+ * frame). Native image rows keep their original columns. Frame/rail cells are inert.
  */
 export function mapCardMouseEvent<T extends MouseEventLike>(event: T, card: CardRender): T | undefined {
-	const { prefix, inner } = card;
-	const bodyEnd = prefix + 1 + (inner.length - prefix); // exclusive row index of the body
+	const { prefix, inner, imageRows } = card;
+	const bodyEnd = inner.length - imageRows + 1; // bottom frame row
+	if (event.y > bodyEnd && event.y < inner.length + 2) {
+		return { ...event, y: event.y - 2, width: card.innerWidth, height: inner.length };
+	}
 	let y: number;
 	if (event.y < prefix) y = event.y;
 	else if (event.y > prefix && event.y < bodyEnd) y = event.y - 1;
@@ -185,6 +197,7 @@ export function installToolExecutionStyle(_getTheme?: () => Theme | undefined): 
 			}
 
 			const lines = inner as string[];
+			const imageRows = imageTailHeight(runtime, innerWidth);
 			const expanded = runtime.expanded === true;
 			const name = toolLabelName(runtime);
 			const colorMode = getColorMode();
@@ -196,12 +209,13 @@ export function installToolExecutionStyle(_getTheme?: () => Theme | undefined): 
 				cached.expanded === expanded &&
 				cached.name === name &&
 				cached.colorMode === colorMode &&
+				cached.imageRows === imageRows &&
 				sameLines(cached.inner, lines)
 			) {
 				return cached.lines;
 			}
 
-			const card = buildCard(lines, width, status, name);
+			const card = buildCard(lines, width, status, name, imageRows);
 			cards.set(receiver as object, {
 				width,
 				innerWidth,
@@ -210,6 +224,7 @@ export function installToolExecutionStyle(_getTheme?: () => Theme | undefined): 
 				name,
 				colorMode,
 				prefix: card.prefix,
+				imageRows,
 				inner: lines,
 				lines: card.lines,
 			});

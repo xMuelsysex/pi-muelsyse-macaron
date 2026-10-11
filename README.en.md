@@ -59,7 +59,7 @@ No runtime dependencies; everything uses Pi’s public extension API except thre
 ```
 
 - Tool cards: muelsyse frame + status rail (sky running / mint done / coral failed); the body is Pi’s own render, byte-for-byte
-- `!cmd` output, edit diffs and images: stock Pi
+- Edit diffs and text from image results stay inside the tool frame; native Pi images follow below it. `!cmd` output stays stock Pi
 - Hidden thinking shows a muelsyse `✦ Thought` label; visible thinking is stock Pi
 
 ## Requirements
